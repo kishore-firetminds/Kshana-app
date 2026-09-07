@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Expo and native build output
+.expo/
+.expo-shared/
+dist/
+web-build/
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+
+# Logs and caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+.cache/
+.parcel-cache/
+
+# Tests and editor/OS files
+coverage/
+.DS_Store
+.idea/
+.vscode/
+*.swp

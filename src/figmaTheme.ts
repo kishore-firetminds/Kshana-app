@@ -1,0 +1,26 @@
+export const ui = {
+  purple: "#410093",
+  purple2: "#5B19BE",
+  purpleSoft: "#F3EBF8",
+  purpleSurface: "#F9F1FE",
+  purpleLight: "#EADDFF",
+  lavender: "#C6AAFF",
+  bg: "#FEF7FF",
+  bgCool: "#F8F9FF",
+  white: "#FFFFFF",
+  ink: "#1D1A23",
+  body: "#4A4454",
+  muted: "#7B7486",
+  line: "#CCC3D7",
+  danger: "#BA1A1A",
+  warning: "#7A3500",
+  dark: "#322F38",
+  success: "#006948",
+} as const;
+export const uiShadow = {
+  shadowColor: "#1D1A23",
+  shadowOpacity: 0.06,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 2,
+} as const;
