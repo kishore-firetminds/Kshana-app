@@ -72,10 +72,7 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
     [],
   );
   const target = useMemo(() => workspaceUrl(SITE_URL, path), [path]);
-  const source = useMemo(
-    () => ({ uri: prepared ? target : "about:blank" }),
-    [prepared, target],
-  );
+  const source = useMemo(() => ({ uri: target }), [target]);
   const origin = new URL(SITE_URL).origin;
   const retry = () => {
     setReady(false);
@@ -97,6 +94,22 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
     );
     return () => clearTimeout(timeout);
   }, [ready, error, attempt]);
+  useEffect(() => {
+    if (prepared || error || preparing.current) return;
+    preparing.current = true;
+    const current = generation.current;
+    void api
+      .prepareWorkspace(SITE_URL)
+      .then(() => {
+        if (current === generation.current) setPrepared(true);
+      })
+      .catch(() => {
+        if (current === generation.current)
+          setError(
+            "Could not open your workspace session. Please retry or sign in again.",
+          );
+      });
+  }, [attempt, error, prepared]);
   useFocusEffect(
     useCallback(() => {
       const handler = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -177,7 +190,7 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
         }
       />
       <KeyboardFrame>
-        {!error && (
+        {!error && prepared && (
           <WebView
             key={attempt}
             ref={web}
@@ -228,27 +241,9 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
                 );
               } catch (_) {}
             }}
-            originWhitelist={["https://*", "about:blank"]}
+            originWhitelist={["https://*"]}
             mixedContentMode="never"
-            onLoadEnd={(event) => {
-              if (event.nativeEvent.url !== "about:blank" || preparing.current)
-                return;
-              preparing.current = true;
-              const current = generation.current;
-              void api
-                .prepareWorkspace(SITE_URL)
-                .then(() => {
-                  if (current === generation.current) setPrepared(true);
-                })
-                .catch(() => {
-                  if (current === generation.current)
-                    setError(
-                      "Could not open your workspace session. Please retry or sign in again.",
-                    );
-                });
-            }}
             onShouldStartLoadWithRequest={(request) => {
-              if (request.url === "about:blank") return true;
               if (isMobilePurchaseUrl(request.url, origin)) return false;
               try {
                 const url = new URL(request.url);
@@ -276,8 +271,7 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             onNavigationStateChange={(state) => {
               setBack(
                 state.canGoBack &&
-                  state.url !== target &&
-                  state.url !== "about:blank",
+                  state.url !== target,
               );
             }}
             onError={() =>
@@ -287,7 +281,7 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             }
             onHttpError={(event) => {
               if (
-                event.nativeEvent.url === source.uri ||
+                event.nativeEvent.url === target ||
                 event.nativeEvent.statusCode >= 500
               )
                 setError(
