@@ -11,6 +11,15 @@ check(
   "Unexpected iOS bundle identifier",
 );
 check(
+  /^\d+$/.test(config.ios.buildNumber || ""),
+  "iOS build number must be numeric",
+);
+check(
+  config.ios.infoPlist?.ITSAppUsesNonExemptEncryption === false,
+  "Declare iOS export-compliance encryption usage",
+);
+check(config.ios.supportsTablet === true, "iPad support changed unexpectedly");
+check(
   config.android.package === "com.firetminds.kshanaapi",
   "Unexpected Android package identifier",
 );
@@ -31,6 +40,11 @@ check(
   eas.build.production.android.buildType === "app-bundle",
   "Play production build must be an AAB",
 );
+check(
+  Boolean(eas.build.production.ios),
+  "Missing iOS production build profile",
+);
+check(Boolean(eas.submit.production.ios), "Missing iOS submission profile");
 check(
   config.plugins.some(
     (plugin) => Array.isArray(plugin) && plugin[0] === "expo-notifications",

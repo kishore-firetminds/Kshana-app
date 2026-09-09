@@ -13,7 +13,8 @@
     "brand:build": "node scripts/build-brand-assets.cjs",
     "release:check": "node scripts/release-check.cjs",
     "build:android": "eas build --platform android --profile production",
-    "build:ios": "eas build --platform ios --profile production"
+    "build:ios": "eas build --platform ios --profile production",
+    "submit:ios": "eas submit --platform ios --profile production"
   },
   "dependencies": {
     "@expo-google-fonts/geist": "^0.4.2",
