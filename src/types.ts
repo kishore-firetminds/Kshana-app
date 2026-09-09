@@ -30,11 +30,12 @@ export type Campaign = {
 export type RootStackParamList = {
   Login: undefined;
   Workspace: undefined;
+  WorkspacePage: { path: string; title: string };
   App: undefined;
 };
 export type InboxStackParamList = {
   InboxList: undefined;
-  Conversation: { id: string };
+  Conversation: { id: string; messageId?: string };
   ContactDetails: { id: string };
 };
 export type ContactsStackParamList = {
@@ -56,6 +57,15 @@ export type TabParamList = {
 };
 export type DrawerParamList = {
   Main: undefined;
+  Contacts: undefined;
+  Leads: undefined;
+  Companies: undefined;
+  Tasks: undefined;
+  Library: undefined;
+  QuickReplies: undefined;
+  Developer: undefined;
+  Usage: undefined;
+  MetaPayments: undefined;
   Templates: undefined;
   Automations: undefined;
   Analytics: undefined;

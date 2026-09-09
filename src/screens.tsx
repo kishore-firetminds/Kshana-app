@@ -1,3 +1,4 @@
+import { Text, TextInput } from "./themedText";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -7,8 +8,6 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -90,58 +89,7 @@ const GreetingHero = () => (
   </Animated.View>
 );
 
-export function LoginScreen() {
-  const login = useAppStore((x) => x.login);
-  const [show, setShow] = useState(false);
-  return (
-    <Screen style={st.auth}>
-      <View style={st.brand}>
-        <View style={st.logo}>
-          <MessageCircle color="white" fill="white" size={27} />
-        </View>
-        <Text style={st.brandText}>
-          Kshana<Text style={{ color: colors.primary }}>API</Text>
-        </Text>
-      </View>
-      <View>
-        <Text style={st.hero}>Welcome back</Text>
-        <Text style={st.subhero}>
-          Sign in to manage your WhatsApp workspace.
-        </Text>
-      </View>
-      <Card style={st.authCard}>
-        <Text style={st.label}>Email address</Text>
-        <TextInput
-          style={st.input}
-          placeholder="you@company.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <Text style={st.label}>Password</Text>
-        <View style={st.password}>
-          <TextInput
-            style={st.passwordInput}
-            placeholder="Enter your password"
-            secureTextEntry={!show}
-          />
-          <Pressable onPress={() => setShow(!show)}>
-            <Text style={st.show}>{show ? "Hide" : "Show"}</Text>
-          </Pressable>
-        </View>
-        <View style={st.authLinks}>
-          <Text style={st.remember}>✓ Remember me</Text>
-          <Text style={st.show}>Forgot password?</Text>
-        </View>
-        <Pressable onPress={login} style={st.primaryButton}>
-          <Text style={st.primaryButtonText}>Sign in securely</Text>
-        </Pressable>
-      </Card>
-      <Text style={st.legal}>
-        By continuing, you agree to our Terms and Privacy Policy.
-      </Text>
-    </Screen>
-  );
-}
+export { FigmaLogin as LoginScreen } from "./figmaScreens";
 
 export function HomeScreen() {
   const { width } = useWindowDimensions();

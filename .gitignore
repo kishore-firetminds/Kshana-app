@@ -13,6 +13,10 @@ ios/
 *.p12
 *.key
 *.mobileprovision
+google-services.json
+GoogleService-Info.plist
+credentials.json
+*service-account*.json
 
 # Environment files and local secrets
 .env
@@ -29,6 +33,7 @@ yarn-error.log*
 
 # Tests and editor/OS files
 coverage/
+artifacts/
 .DS_Store
 .idea/
 .vscode/

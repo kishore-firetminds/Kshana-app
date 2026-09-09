@@ -10,19 +10,64 @@
     "ios": {
       "icon": "./assets/brand/app-icon.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.kshanaapi.crm"
+      "bundleIdentifier": "com.firetminds.kshanaapi",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.kshanaapi.crm",
+      "package": "com.firetminds.kshanaapi",
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/brand/icon-only.png",
+        "foregroundImage": "./assets/brand/adaptive-foreground.png",
+        "monochromeImage": "./assets/brand/adaptive-monochrome.png",
         "backgroundColor": "#FFFFFF"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "scheme": "kshanaapi",
     "plugins": [
-      "expo-asset"
-    ]
+      "expo-asset",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/brand/notification-icon.png",
+          "color": "#0e5132",
+          "defaultChannel": "workspace"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose a photo to attach to a workspace conversation.",
+          "cameraPermission": "Take a photo to attach to a workspace conversation.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#fffdfa"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f4ba8cbd-001c-4fc7-a452-91f176931d53"
+      }
+    },
+    "owner": "kishore15421"
   }
 }

@@ -1,29 +1,27 @@
-import React from "react";
+﻿import { BottomNavigation } from "./BottomNavigation";
+import { Text } from "./themedText";
+import { WorkspacePage } from "./WorkspaceScreen";
+import React, { useEffect, useState } from "react";
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from "react-native";
 import {
   NavigationContainer,
   DefaultTheme,
-  getFocusedRouteNameFromRoute,
+  createNavigationContainerRef,
 } from "@react-navigation/native";
+import { MobileLifecycle } from "./MobileLifecycle";
+import { trackMobileEvent } from "./mobileServices";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import {
-  BottomTabBarProps,
-  createBottomTabNavigator,
-} from "@react-navigation/bottom-tabs";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
   createDrawerNavigator,
   DrawerContentComponentProps,
 } from "@react-navigation/drawer";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   BarChart3,
   Bell,
@@ -40,7 +38,6 @@ import {
   Zap,
   UserRound,
 } from "lucide-react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   DrawerParamList,
   InboxStackParamList,
@@ -59,17 +56,73 @@ import {
 import { BrandHeader, Page, Surface } from "./figmaComponents";
 import { ui } from "./figmaTheme";
 import { useAppStore } from "./store";
+import { ModuleScreen, moduleConfig } from "./moduleScreens";
+import { can } from "./api/types";
+import { Avatar, Button, Feedback, l } from "./liveUi";
+import { api } from "./api";
+import type { Notification } from "./api/types";
+import { matchesNotification } from "./mobileServices";
+import {
+  notificationConversationId,
+  notificationMessageId,
+} from "./notificationRouting";
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Drawer = createDrawerNavigator<DrawerParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 const InboxStack = createNativeStackNavigator<InboxStackParamList>();
+const navigationRef = createNavigationContainerRef<any>();
+async function openPushNotification(data: Record<string, unknown>) {
+  if (!navigationRef.isReady() || !useAppStore.getState().authenticated)
+    return false;
+  const user = useAppStore.getState().user;
+  if (!matchesNotification(data, user)) return false;
+  let notification: Notification | null = null;
+  try {
+    notification = await api.get<Notification>(
+      `/notifications/${encodeURIComponent(String(data.notificationId))}`,
+    );
+  } catch {
+    /* Older servers or unavailable alerts safely fall back to Alerts. */
+  }
+  if (useAppStore.getState().user !== user || !navigationRef.isReady())
+    return false;
+  const conversationId = notificationConversationId(notification?.link);
+  navigationRef.navigate("App", {
+    screen: "Main",
+    params: conversationId
+      ? {
+          screen: "Inbox",
+          params: {
+            screen: "Conversation",
+            params: {
+              id: conversationId,
+              messageId: notificationMessageId(notification?.link),
+            },
+          },
+        }
+      : { screen: "Alerts" },
+  });
+  trackMobileEvent(
+    "notification_open",
+    conversationId ? "Conversation" : "Alerts",
+  );
+  return true;
+}
+let lastScreen = "";
+function trackScreen() {
+  const screen = navigationRef.getCurrentRoute()?.name || "";
+  if (screen !== lastScreen) {
+    lastScreen = screen;
+    trackMobileEvent("screen_view", screen);
+  }
+}
 const theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
     background: ui.bg,
-    primary: ui.purple,
+    primary: ui.primary,
     text: ui.ink,
     border: ui.line,
     card: ui.white,
@@ -90,128 +143,10 @@ function InboxNav() {
     </InboxStack.Navigator>
   );
 }
-const tabIconNames = {
-  Home: "home-variant-outline",
-  Inbox: "message-text-outline",
-  Campaigns: "bullhorn-outline",
-  Alerts: "bell-outline",
-  Profile: "account-circle-outline",
-} as const;
-function ResponsiveTabBar({
-  state,
-  descriptors,
-  navigation,
-}: BottomTabBarProps) {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const focusedRoute = state.routes[state.index];
-  if (getFocusedRouteNameFromRoute(focusedRoute) === "Conversation")
-    return null;
-  const compact = width < 360;
-  return (
-    <BlurView
-      tint="extraLight"
-      intensity={88}
-      experimentalBlurMethod="dimezisBlurView"
-      blurReductionFactor={3}
-      style={[
-        n.tabBar,
-        {
-          height: 64 + insets.bottom,
-          paddingBottom: Math.max(insets.bottom, 5),
-        },
-      ]}
-    >
-      <LinearGradient
-        pointerEvents="none"
-        colors={[
-          "rgba(255,255,255,.92)",
-          "rgba(255,255,255,.48)",
-          "rgba(241,229,255,.56)",
-        ]}
-        locations={[0, 0.42, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-      <View pointerEvents="none" style={n.glassHighlight} />
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
-        const configuredLabel = descriptors[route.key].options.tabBarLabel;
-        const label: string =
-          typeof configuredLabel === "string" ? configuredLabel : route.name;
-        const onPress = () => {
-          const event = navigation.emit({
-            type: "tabPress",
-            target: route.key,
-            canPreventDefault: true,
-          });
-          if (!focused && !event.defaultPrevented)
-            navigation.navigate(route.name, route.params);
-        };
-        const contents = (
-          <>
-            <MaterialCommunityIcons
-              name={
-                tabIconNames[route.name as keyof typeof tabIconNames] as any
-              }
-              size={compact ? 21 : 22}
-              color={focused ? ui.white : "#685395"}
-            />
-            <Text
-              allowFontScaling={false}
-              numberOfLines={1}
-              style={[
-                n.tabLabel,
-                compact && n.tabLabelCompact,
-                focused && n.tabLabelActive,
-              ]}
-            >
-              {label}
-            </Text>
-          </>
-        );
-        return (
-          <Pressable
-            key={route.key}
-            accessibilityRole="button"
-            accessibilityState={focused ? { selected: true } : {}}
-            accessibilityLabel={`${label} tab`}
-            onPress={onPress}
-            onLongPress={() =>
-              navigation.emit({ type: "tabLongPress", target: route.key })
-            }
-            style={({ pressed }) => [n.tabButton, pressed && n.tabPressed]}
-          >
-            <View
-              style={[
-                n.tabPillShell,
-                compact && n.tabPillCompact,
-                focused && n.tabPillActive,
-              ]}
-            >
-              {focused ? (
-                <LinearGradient
-                  colors={["#8D4FE7", "#6220C4", "#410093"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={n.tabPill}
-                >
-                  <View pointerEvents="none" style={n.pillSheen} />
-                  {contents}
-                </LinearGradient>
-              ) : (
-                <View style={n.tabPill}>{contents}</View>
-              )}
-            </View>
-          </Pressable>
-        );
-      })}
-    </BlurView>
-  );
-}
 function MainTabs() {
   return (
     <Tabs.Navigator
-      tabBar={(props) => <ResponsiveTabBar {...props} />}
+      tabBar={(props) => <BottomNavigation {...props} />}
       screenOptions={{
         headerShown: false,
         animation: "fade",
@@ -233,6 +168,17 @@ const groups = [
     [
       ["Templates", "Message Templates", FileText],
       ["Automations", "Automations", Zap],
+      ["Library", "Template Library", FileText],
+      ["QuickReplies", "Quick Replies", Send],
+    ],
+  ],
+  [
+    "CONTACTS & FOLLOW-UPS",
+    [
+      ["Contacts", "Contacts", Users],
+      ["Leads", "Leads", UserRound],
+      ["Companies", "Businesses", LayoutGrid],
+      ["Tasks", "Follow-ups", Bell],
     ],
   ],
   [
@@ -241,12 +187,12 @@ const groups = [
       ["Analytics", "Analytics", BarChart3],
       ["Team", "Team Management", Users],
       ["Integrations", "Integrations", LayoutGrid],
+      ["Developer", "Developers", LayoutGrid],
     ],
   ],
   [
     "ACCOUNT",
     [
-      ["Subscription", "Subscription & Usage", WalletCards],
       ["Settings", "Settings", Settings],
       ["Help", "Help & Support", CircleHelp],
     ],
@@ -254,67 +200,78 @@ const groups = [
 ] as const;
 function AppDrawer(p: DrawerContentComponentProps) {
   const logout = useAppStore((x) => x.logout);
+  const user = useAppStore((x) => x.user);
+  const workspace = useAppStore((x) => x.workspace);
   return (
     <View style={n.drawer}>
-      <BrandHeader onSearch={false} />
+      <BrandHeader
+        onSearch={false}
+        onAvatar={() => p.navigation.closeDrawer()}
+      />
       <ScrollView contentContainerStyle={n.drawerBody}>
         <View style={n.workspace}>
-          <View style={n.workspaceAvatar}>
-            <Text style={n.workspaceInitials}>FL</Text>
-          </View>
-          <View>
-            <Text style={n.workspaceTitle}>Fireside Labs</Text>
-            <Text style={n.workspaceSub}>WhatsApp connected</Text>
+          <Avatar name={workspace || "Workspace"} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={n.workspaceTitle}>
+              {workspace}
+            </Text>
+            <Text numberOfLines={1} style={n.workspaceSub}>
+              {user?.fullName}
+            </Text>
           </View>
         </View>
         <Pressable
-          style={n.activeItem}
-          onPress={() => p.navigation.navigate("Main")}
+          style={p.state.index === 0 ? n.activeItem : n.drawerItem}
+          onPress={() => p.navigation.navigate("Main", { screen: "Home" })}
         >
-          <Home color={ui.purple} size={20} />
+          <Home color={ui.primary} size={20} />
           <Text style={n.activeText}>Dashboard</Text>
         </Pressable>
         {groups.map(([group, items]) => (
           <View key={group}>
             <Text style={n.group}>{group}</Text>
-            {items.map(([key, label, Icon]) => (
-              <Pressable
-                key={key}
-                style={n.drawerItem}
-                onPress={() => p.navigation.navigate(key as never)}
-              >
-                <Icon color="#685395" size={20} />
-                <Text style={n.drawerText}>{label}</Text>
-              </Pressable>
-            ))}
+            {items
+              .filter(
+                ([key]) =>
+                  !moduleConfig[key].permission ||
+                  can(user, moduleConfig[key].permission!),
+              )
+              .map(([key, label, Icon]) => (
+                <Pressable
+                  key={key}
+                  style={
+                    p.state.routes[p.state.index].name === key
+                      ? n.activeItem
+                      : n.drawerItem
+                  }
+                  onPress={() => p.navigation.navigate(key as never)}
+                >
+                  <Icon color={ui.muted} size={20} />
+                  <Text
+                    style={
+                      p.state.routes[p.state.index].name === key
+                        ? n.activeText
+                        : n.drawerText
+                    }
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
           </View>
         ))}
         <View style={n.divider} />
-        <Pressable style={n.drawerItem} onPress={logout}>
+        <Pressable
+          style={n.drawerItem}
+          onPress={() => {
+            void logout().catch(() => {});
+          }}
+        >
           <LogOut color={ui.danger} />
           <Text style={[n.drawerText, { color: ui.danger }]}>Logout</Text>
         </Pressable>
       </ScrollView>
     </View>
-  );
-}
-function Secondary({ route, navigation }: any) {
-  return (
-    <>
-      <BrandHeader onAvatar={() => navigation.openDrawer()} />
-      <Page>
-        <Text style={n.moduleTitle}>{route.name}</Text>
-        <Text style={n.moduleSub}>
-          Manage your {route.name.toLowerCase()} workspace.
-        </Text>
-        <Surface style={n.moduleCard}>
-          <Text style={n.moduleCardTitle}>Workspace overview</Text>
-          <Text style={n.moduleSub}>
-            Your data is connected and up to date.
-          </Text>
-        </Surface>
-      </Page>
-    </>
   );
 }
 function DrawerNav() {
@@ -326,7 +283,7 @@ function DrawerNav() {
         headerShown: false,
         drawerType: width >= 768 ? "permanent" : "front",
         drawerStyle: { width: Math.min(width * 0.86, 340) },
-        overlayColor: "rgba(29,26,35,.46)",
+        overlayColor: "rgba(20,38,29,.46)",
         swipeEdgeWidth: 28,
       }}
     >
@@ -344,19 +301,56 @@ function DrawerNav() {
           <Drawer.Screen
             key={key}
             name={key as keyof DrawerParamList}
-            component={Secondary}
+            component={ModuleScreen}
           />
         ))}
     </Drawer.Navigator>
   );
 }
 export function AppNavigation() {
+  const [navigationReady, setNavigationReady] = useState(false);
   const auth = useAppStore((x) => x.authenticated);
+  const restoring = useAppStore((x) => x.restoring);
+  const restoreError = useAppStore((x) => x.restoreError);
+  const restore = useAppStore((x) => x.restore);
+  useEffect(() => {
+    void restore();
+  }, [restore]);
+  if (restoring || restoreError)
+    return (
+      <View style={[l.page, { justifyContent: "center", padding: 24 }]}>
+        <Feedback loading={restoring} error={restoreError} retry={restore} />
+        {restoreError && (
+          <Button
+            title="Back to sign in"
+            secondary
+            onPress={() => {
+              void api.clear().catch(() => {});
+            }}
+          />
+        )}
+      </View>
+    );
   return (
-    <NavigationContainer theme={theme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={theme}
+      onReady={() => {
+        setNavigationReady(true);
+        trackScreen();
+      }}
+      onStateChange={trackScreen}
+    >
+      <MobileLifecycle
+        navigationReady={navigationReady}
+        onOpenNotification={openPushNotification}
+      />
       <Root.Navigator screenOptions={{ headerShown: false, animation: "fade" }}>
         {auth ? (
-          <Root.Screen name="App" component={DrawerNav} />
+          <>
+            <Root.Screen name="App" component={DrawerNav} />
+            <Root.Screen name="WorkspacePage" component={WorkspacePage} />
+          </>
         ) : (
           <Root.Screen name="Login" component={FigmaLogin} />
         )}
@@ -365,87 +359,12 @@ export function AppNavigation() {
   );
 }
 const n = StyleSheet.create({
-  tabBar: {
-    backgroundColor: "rgba(255,255,255,.7)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,.9)",
-    paddingTop: 5,
-    paddingHorizontal: 5,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    overflow: "hidden",
-    shadowColor: "#241039",
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 16,
-  },
-  glassHighlight: {
-    position: "absolute",
-    top: 1,
-    left: 18,
-    right: 18,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,.96)",
-    borderRadius: 1,
-  },
-  tabButton: {
-    flex: 1,
-    minWidth: 0,
-    height: 54,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 16,
-  },
-  tabPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
-  tabPillShell: { minWidth: 64, height: 46, borderRadius: 16 },
-  tabPill: {
-    flex: 1,
-    paddingHorizontal: 7,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 1,
-    overflow: "hidden",
-  },
-  tabPillCompact: { minWidth: 52 },
-  tabPillActive: {
-    shadowColor: "#5B19BE",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.38,
-    shadowRadius: 8,
-    elevation: 7,
-  },
-  pillSheen: {
-    position: "absolute",
-    top: 1,
-    left: 8,
-    right: 8,
-    height: "43%",
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,.18)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,.38)",
-  },
-  tabLabel: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    letterSpacing: 0.15,
-    color: "#685395",
-  },
-  tabLabelCompact: { fontSize: 9.5, letterSpacing: 0 },
-  tabLabelActive: {
-    color: ui.white,
-    textShadowColor: "rgba(30,0,70,.3)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  drawer: { flex: 1, backgroundColor: ui.white },
+  drawer: { flex: 1, backgroundColor: ui.sidebar },
   drawerBody: { padding: 16, paddingBottom: 40 },
   workspace: {
     height: 74,
     borderRadius: 14,
-    backgroundColor: ui.purpleSurface,
+    backgroundColor: ui.successSurface,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -456,27 +375,31 @@ const n = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: ui.lavender,
+    backgroundColor: ui.secondary,
     alignItems: "center",
     justifyContent: "center",
   },
-  workspaceInitials: { color: ui.purple, fontWeight: "800" },
+  workspaceInitials: { color: ui.primary, fontWeight: "800" },
   workspaceTitle: { fontSize: 16, fontWeight: "700", color: ui.ink },
   workspaceSub: { fontSize: 12, color: ui.success, marginTop: 3 },
   activeItem: {
     height: 48,
     borderRadius: 12,
-    backgroundColor: ui.purpleSoft,
+    backgroundColor: ui.sidebarAccent,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     paddingHorizontal: 14,
   },
-  activeText: { fontSize: 15, fontWeight: "700", color: ui.purple },
+  activeText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: ui.secondaryForeground,
+  },
   group: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#9D91A8",
+    color: ui.muted,
     letterSpacing: 0.8,
     marginTop: 22,
     marginBottom: 7,
@@ -489,7 +412,7 @@ const n = StyleSheet.create({
     paddingHorizontal: 14,
   },
   drawerText: { fontSize: 15, fontWeight: "600", color: ui.ink },
-  divider: { height: 1, backgroundColor: "#EEE8F1", marginVertical: 15 },
+  divider: { height: 1, backgroundColor: ui.sidebarBorder, marginVertical: 15 },
   moduleTitle: { fontSize: 24, fontWeight: "800", color: ui.ink },
   moduleSub: { fontSize: 14, lineHeight: 21, color: ui.body, marginTop: 5 },
   moduleCard: { padding: 18, marginTop: 4 },

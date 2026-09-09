@@ -1,19 +1,19 @@
+import { ScrollView } from "./KeyboardLayout";
+import { Text, TextInput } from "./themedText";
 import React, { useMemo, useState } from "react";
 import {
   Image,
   ImageSourcePropType,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ui, uiShadow } from "./figmaTheme";
+import { BrandLogo } from "./BrandLogo";
 
 const searchItems = [
   {
@@ -23,14 +23,14 @@ const searchItems = [
     icon: "view-dashboard-outline",
   },
   {
-    title: "Marcus Aurelius",
-    subtitle: "Conversation · Urgent",
+    title: "Inbox",
+    subtitle: "Conversations and customer replies",
     route: "Inbox",
     icon: "message-text-outline",
   },
   {
-    title: "Summer Launch 2024",
-    subtitle: "Campaign · Running",
+    title: "Campaigns",
+    subtitle: "Campaign delivery and performance",
     route: "Campaigns",
     icon: "bullhorn-outline",
   },
@@ -41,8 +41,8 @@ const searchItems = [
     icon: "bell-outline",
   },
   {
-    title: "Alexander Bennett",
-    subtitle: "Profile · Team Lead",
+    title: "My profile",
+    subtitle: "Account and workspace details",
     route: "Profile",
     icon: "account-outline",
   },
@@ -51,9 +51,11 @@ const searchItems = [
 export const BrandHeader = ({
   onAvatar,
   onSearch = true,
+  actions,
 }: {
   onAvatar?: () => void;
   onSearch?: boolean;
+  actions?: React.ReactNode;
 }) => {
   const navigation = useNavigation<any>();
   const [searching, setSearching] = useState(false);
@@ -88,14 +90,14 @@ export const BrandHeader = ({
             accessibilityRole="button"
             accessibilityLabel="Open navigation menu"
             onPress={onAvatar}
-            style={c.brand}
+            style={c.headerButton}
           >
-            <Image
-              source={require("../assets/brand/logo-no-tagline.png")}
-              resizeMode="contain"
-              style={c.brandLogo}
-            />
+            <MaterialCommunityIcons name="menu" size={28} color={ui.primary} />
           </Pressable>
+          <View style={[c.brand, { flex: 1 }]}>
+            <BrandLogo />
+          </View>
+          {actions}
           {onSearch && (
             <Pressable
               accessibilityRole="button"
@@ -106,7 +108,7 @@ export const BrandHeader = ({
               <MaterialCommunityIcons
                 name="magnify"
                 size={24}
-                color={ui.purple}
+                color={ui.primary}
               />
             </Pressable>
           )}
@@ -164,7 +166,7 @@ export const BrandHeader = ({
             contentContainerStyle={c.searchResults}
           >
             <Text style={c.searchEyebrow}>
-              {query ? "RESULTS" : "QUICK LINKS"}
+              {query ? "PAGES" : "QUICK LINKS"}
             </Text>
             {matches.map((item) => (
               <Pressable
@@ -179,7 +181,7 @@ export const BrandHeader = ({
                   <MaterialCommunityIcons
                     name={item.icon as any}
                     size={22}
-                    color={ui.purple}
+                    color={ui.primary}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -202,7 +204,8 @@ export const BrandHeader = ({
                 />
                 <Text style={c.searchResultTitle}>No matching results</Text>
                 <Text style={c.searchResultSub}>
-                  Try a contact, campaign, alert, or page name.
+                  Search for a page. Use the inbox search to find contacts and
+                  messages.
                 </Text>
               </View>
             )}
@@ -327,7 +330,7 @@ export const Badge = ({
         ? ui.warning
         : tone === "outline"
           ? "transparent"
-          : ui.purpleSoft;
+          : ui.accent;
   return (
     <View
       style={[
@@ -364,8 +367,7 @@ export const c = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: ui.bg,
   },
-  brand: { width: 164, height: 48, justifyContent: "center" },
-  brandLogo: { width: 158, height: 42 },
+  brand: { minWidth: 0, height: 48, justifyContent: "center" },
   headerButton: {
     width: 44,
     height: 44,
@@ -373,7 +375,7 @@ export const c = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  pressed: { backgroundColor: ui.purpleSurface },
+  pressed: { backgroundColor: ui.successSurface },
   page: { flex: 1, backgroundColor: ui.bg },
   content: { paddingBottom: 32, gap: 24 },
   padded: { paddingHorizontal: 16 },
@@ -381,7 +383,7 @@ export const c = StyleSheet.create({
     backgroundColor: ui.white,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(204,195,215,.3)",
+    borderColor: ui.line,
     ...uiShadow,
   },
   headingRow: {
@@ -394,13 +396,13 @@ export const c = StyleSheet.create({
     height: 36,
     paddingHorizontal: 16,
     borderRadius: 18,
-    backgroundColor: "#EDE5F3",
+    backgroundColor: ui.accent,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
   },
-  pillActive: { backgroundColor: ui.purple2 },
+  pillActive: { backgroundColor: ui.primaryHover },
   pillText: { fontSize: 14, fontWeight: "600", color: ui.body },
   pillTextActive: { color: ui.white },
   pillDot: { width: 8, height: 8, borderRadius: 4 },
@@ -445,12 +447,12 @@ export const c = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  searchResultPressed: { backgroundColor: ui.purpleSurface },
+  searchResultPressed: { backgroundColor: ui.successSurface },
   searchResultIcon: {
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: ui.purpleSoft,
+    backgroundColor: ui.accent,
     alignItems: "center",
     justifyContent: "center",
   },

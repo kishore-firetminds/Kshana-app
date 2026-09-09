@@ -1,13 +1,12 @@
+import { ScrollView } from "./KeyboardLayout";
+import { Text, TextInput } from "./themedText";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   ViewProps,
 } from "react-native";
