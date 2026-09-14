@@ -13,6 +13,14 @@ let owner: CurrentUser | null = null;
 let generation = 0;
 let notifications: typeof NotificationTypes | null = null;
 let permissionPrompt: Promise<void> | null = null;
+let pushRegistration: Promise<void> | null = null;
+let lastPushRegistration: {
+  ownerKey: string;
+  token: string;
+  registeredAt: number;
+} | null = null;
+
+const PUSH_REGISTRATION_COOLDOWN_MS = 15 * 60 * 1000;
 
 async function configureNotificationChannel() {
   const module = notificationModule();
@@ -53,16 +61,29 @@ let queue: Array<{
 let flushing: Promise<void> | null = null;
 export const mobilePreferences = create<{
   analytics: boolean;
+  analyticsConsentRequired: boolean;
   push: boolean;
   loaded: boolean;
-}>(() => ({ analytics: false, push: false, loaded: false }));
+}>(() => ({
+  analytics: false,
+  analyticsConsentRequired: false,
+  push: false,
+  loaded: false,
+}));
 const key = (name: string) => `${prefix}.${owner?.id}.${name}`;
 
 export async function loadMobilePreferences(user: CurrentUser | null) {
   const current = ++generation;
+  if (owner?.id !== user?.id || owner?.organizationId !== user?.organizationId)
+    lastPushRegistration = null;
   owner = user;
   queue = [];
-  mobilePreferences.setState({ analytics: false, push: false, loaded: false });
+  mobilePreferences.setState({
+    analytics: false,
+    analyticsConsentRequired: false,
+    push: false,
+    loaded: false,
+  });
   if (!user) return;
   const [analytics, push] = await Promise.all([
     SecureStore.getItemAsync(key("analytics")),
@@ -71,6 +92,7 @@ export async function loadMobilePreferences(user: CurrentUser | null) {
   if (current !== generation) return;
   mobilePreferences.setState({
     analytics: analytics === "true",
+    analyticsConsentRequired: analytics === null,
     push: push === "true",
     loaded: true,
   });
@@ -80,7 +102,7 @@ export async function setAnalyticsEnabled(enabled: boolean) {
   const current = generation;
   await SecureStore.setItemAsync(key("analytics"), String(enabled));
   if (current !== generation) return;
-  mobilePreferences.setState({ analytics: enabled });
+  mobilePreferences.setState({ analytics: enabled, analyticsConsentRequired: false });
   if (!enabled) queue = [];
 }
 export async function eraseAnalytics() {
@@ -185,7 +207,16 @@ async function installationId() {
   }
   return id;
 }
-export async function registerPush(requestPermission = false) {
+export function registerPush(requestPermission = false) {
+  if (pushRegistration) return pushRegistration;
+  const pending = registerPushInternal(requestPermission).finally(() => {
+    if (pushRegistration === pending) pushRegistration = null;
+  });
+  pushRegistration = pending;
+  return pending;
+}
+
+async function registerPushInternal(requestPermission = false) {
   if (!owner) return;
   const current = generation;
   // The OS permission dialog can foreground the app before its promise settles.
@@ -225,11 +256,20 @@ export async function registerPush(requestPermission = false) {
   const token = (await module.getExpoPushTokenAsync({ projectId })).data;
   const id = await installationId();
   if (current !== generation) return;
+  const ownerKey = `${owner.id}:${owner.organizationId}`;
+  if (
+    !requestPermission &&
+    lastPushRegistration?.ownerKey === ownerKey &&
+    lastPushRegistration.token === token &&
+    Date.now() - lastPushRegistration.registeredAt < PUSH_REGISTRATION_COOLDOWN_MS
+  )
+    return;
   await api.request("/mobile/devices", {
     method: "PUT",
     data: { installationId: id, token, platform: Platform.OS },
   });
   if (current !== generation) return;
+  lastPushRegistration = { ownerKey, token, registeredAt: Date.now() };
   await SecureStore.setItemAsync(key("push"), "true");
   mobilePreferences.setState({ push: true });
 }
@@ -243,6 +283,7 @@ export async function unregisterPush(disable = true) {
     method: "DELETE",
     data: { installationId: id },
   });
+  lastPushRegistration = null;
   if (disable) await SecureStore.setItemAsync(storageKey, "false");
   if (current !== generation) return;
   mobilePreferences.setState({ push: false });

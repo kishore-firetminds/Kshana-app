@@ -15,6 +15,7 @@ import {
   createNavigationContainerRef,
 } from "@react-navigation/native";
 import { MobileLifecycle } from "./MobileLifecycle";
+import { MobileAnalyticsConsent } from "./MobileAnalyticsConsent";
 import { trackMobileEvent } from "./mobileServices";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -345,6 +346,7 @@ export function AppNavigation() {
         navigationReady={navigationReady}
         onOpenNotification={openPushNotification}
       />
+      {auth ? <MobileAnalyticsConsent /> : null}
       <Root.Navigator screenOptions={{ headerShown: false, animation: "fade" }}>
         {auth ? (
           <>
