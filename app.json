@@ -2,7 +2,7 @@
   "expo": {
     "name": "KshanaAPI",
     "slug": "kshana-api",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "icon": "./assets/brand/app-icon.png",
     "orientation": "default",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.firetminds.kshanaapi",
-      "versionCode": 1,
+      "versionCode": 5,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_IMAGES",
