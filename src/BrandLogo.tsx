@@ -32,7 +32,7 @@ export function BrandLogo({
         resizeMode="contain"
         style={StyleSheet.absoluteFill}
         accessible
-        accessibilityLabel="KshanaAPI"
+        accessibilityLabel="Kshana API"
       />
     </View>
   );

@@ -180,12 +180,12 @@ export function BottomNavigation({
             <Defs>
               <LinearGradient id="glass" x1="0" y1="0" x2="0.8" y2="1">
                 <Stop offset="0" stopColor="#ffffff" stopOpacity="0.98" />
-                <Stop offset="0.5" stopColor="#f1f9f5" stopOpacity="0.88" />
-                <Stop offset="1" stopColor="#dceee4" stopOpacity="0.95" />
+                <Stop offset="0.5" stopColor="#eef8f5" stopOpacity="0.9" />
+                <Stop offset="1" stopColor="#d5ebe5" stopOpacity="0.96" />
               </LinearGradient>
               <LinearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor="#ffffff" />
-                <Stop offset="1" stopColor="#b9d6c6" stopOpacity="0.8" />
+                <Stop offset="1" stopColor="#a8cfc4" stopOpacity="0.82" />
               </LinearGradient>
             </Defs>
             <AnimatedPath
@@ -248,7 +248,7 @@ export function BottomNavigation({
             style={[styles.iconSelected, bubbleStyle]}
           >
             <GlassGradient
-              colors={["#367c59", ui.primary, ui.primaryStrong]}
+              colors={["#29a58a", ui.primary, ui.primaryStrong]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.activeGlass}
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     backgroundColor: ui.primary,
     borderWidth: 1.5,
-    borderColor: "#d4e8dc",
+    borderColor: "#b8ddd3",
     shadowColor: ui.primaryStrong,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,

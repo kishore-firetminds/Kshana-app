@@ -63,6 +63,7 @@ import {
 } from "./liveUi";
 import { ui } from "./figmaTheme";
 import { EmojiPicker } from "./EmojiPicker";
+import { canAccessTab } from "./access";
 
 function PageHeader({ navigation }: { navigation: any }) {
   return (
@@ -156,6 +157,7 @@ function ConversationRow({
 }
 export function FigmaHome({ navigation }: any) {
   const user = useAppStore((s) => s.user);
+  const inboxAllowed = canAccessTab(user, "Inbox");
   const resource = useResource<Dashboard>(
     can(user, "dashboard.read") ? "/dashboard/overview" : null,
     30000,
@@ -203,30 +205,38 @@ export function FigmaHome({ navigation }: any) {
                     </View>
                   ))}
                 </View>
-                <Text style={l.heading}>Response queue</Text>
-                {overview.responseQueue.length === 0 && (
-                  <Text style={l.body}>No conversations need a response.</Text>
+                {inboxAllowed && (
+                  <>
+                    <Text style={l.heading}>Response queue</Text>
+                    {overview.responseQueue.length === 0 && (
+                      <Text style={l.body}>
+                        No conversations need a response.
+                      </Text>
+                    )}
+                    {overview.responseQueue.map((conversation) => (
+                      <ConversationRow
+                        key={conversation.id}
+                        conversation={conversation}
+                        onPress={() =>
+                          navigation.navigate("Inbox", {
+                            screen: "Conversation",
+                            params: { id: conversation.id },
+                          })
+                        }
+                      />
+                    ))}
+                  </>
                 )}
-                {overview.responseQueue.map((conversation) => (
-                  <ConversationRow
-                    key={conversation.id}
-                    conversation={conversation}
-                    onPress={() =>
-                      navigation.navigate("Inbox", {
-                        screen: "Conversation",
-                        params: { id: conversation.id },
-                      })
-                    }
-                  />
-                ))}
               </>
             )}
           </>
         )}
-        <Button
-          title="Open inbox"
-          onPress={() => navigation.navigate("Inbox")}
-        />
+        {inboxAllowed && (
+          <Button
+            title="Open inbox"
+            onPress={() => navigation.navigate("Inbox")}
+          />
+        )}
       </ScrollView>
     </View>
   );
@@ -425,8 +435,9 @@ function NewConversation({
 export function FigmaConversation({ navigation, route }: any) {
   const id: string = route.params.id;
   const user = useAppStore((s) => s.user);
+  const allowed = canAccessTab(user, "Inbox");
   const resource = useResource<Conversation>(
-    `/conversations/${encodeURIComponent(id)}`,
+    allowed ? `/conversations/${encodeURIComponent(id)}` : null,
     8000,
   );
   const conversation = resource.data;
@@ -651,6 +662,21 @@ export function FigmaConversation({ navigation, route }: any) {
       setBusy(false);
     }
   };
+  if (!allowed)
+    return (
+      <View style={l.page}>
+        <SafeAreaView edges={["top"]}>
+          <View style={{ padding: 12 }}>
+            <Button
+              title="Back"
+              secondary
+              onPress={() => navigation.goBack()}
+            />
+          </View>
+        </SafeAreaView>
+        <AccessNotice />
+      </View>
+    );
   const name = contactName(conversation?.contact);
   return (
     <KeyboardFrame style={l.page}>

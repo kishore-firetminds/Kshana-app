@@ -1,7 +1,8 @@
 import { ScrollView } from "./KeyboardLayout";
 import { Text, TextInput } from "./themedText";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ImageSourcePropType,
   Modal,
@@ -14,6 +15,18 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ui, uiShadow } from "./figmaTheme";
 import { BrandLogo } from "./BrandLogo";
+import { api, SITE_URL } from "./api";
+import { errorMessage } from "./api/client";
+import { useAppStore } from "./store";
+import { canAccessRoute, canAccessTab, canAccessWorkspacePath } from "./access";
+
+type GlobalSearchResult = {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  href: string;
+};
 
 const searchItems = [
   {
@@ -46,6 +59,42 @@ const searchItems = [
     route: "Profile",
     icon: "account-outline",
   },
+  {
+    title: "Contacts",
+    subtitle: "Customer records and contact details",
+    route: "Contacts",
+    icon: "account-multiple-outline",
+  },
+  {
+    title: "Message templates",
+    subtitle: "Create and manage WhatsApp templates",
+    route: "Templates",
+    icon: "file-document-outline",
+  },
+  {
+    title: "WhatsApp Flows",
+    subtitle: "Structured customer journeys and responses",
+    route: "Flows",
+    icon: "source-branch",
+  },
+  {
+    title: "Automations",
+    subtitle: "Routing rules and automated actions",
+    route: "Automations",
+    icon: "lightning-bolt-outline",
+  },
+  {
+    title: "Quick replies",
+    subtitle: "Reusable answers for your team",
+    route: "QuickReplies",
+    icon: "reply-all-outline",
+  },
+  {
+    title: "Billing & usage",
+    subtitle: "Subscription, invoices, and message usage",
+    route: "Billing",
+    icon: "receipt-text-outline",
+  },
 ] as const;
 
 export const BrandHeader = ({
@@ -58,18 +107,66 @@ export const BrandHeader = ({
   actions?: React.ReactNode;
 }) => {
   const navigation = useNavigation<any>();
+  const user = useAppStore((state) => state.user);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<GlobalSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const matches = useMemo(
     () =>
-      searchItems.filter((item) =>
-        (item.title + " " + item.subtitle)
-          .toLowerCase()
-          .includes(query.trim().toLowerCase()),
+      searchItems.filter(
+        (item) =>
+          canAccessRoute(user, item.route) &&
+          (item.title + " " + item.subtitle)
+            .toLowerCase()
+            .includes(query.trim().toLowerCase()),
       ),
-    [query],
+    [query, user],
   );
+  useEffect(() => {
+    const value = query.trim();
+    if (!searching || value.length < 2) {
+      setResults([]);
+      setLoading(false);
+      setSearchError("");
+      return;
+    }
+    let active = true;
+    const timeout = setTimeout(() => {
+      setLoading(true);
+      setSearchError("");
+      void api
+        .get<{ results: GlobalSearchResult[] }>(
+          `/global-search?query=${encodeURIComponent(value)}&limit=8`,
+        )
+        .then((response) => {
+          if (active)
+            setResults(
+              (response.results ?? []).filter((item) =>
+                item.type === "conversation"
+                  ? canAccessTab(user, "Inbox")
+                  : canAccessWorkspacePath(user, item.href, SITE_URL),
+              ),
+            );
+        })
+        .catch((error) => {
+          if (active) {
+            setResults([]);
+            setSearchError(errorMessage(error));
+          }
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [query, searching, user]);
   const goTo = (route: string) => {
+    if (!canAccessRoute(user, route)) return;
     let current: any = navigation;
     while (current) {
       const state = current.getState?.();
@@ -81,6 +178,49 @@ export const BrandHeader = ({
     }
     setSearching(false);
     setQuery("");
+  };
+  const openResult = (item: GlobalSearchResult) => {
+    if (
+      !(item.type === "conversation"
+        ? canAccessTab(user, "Inbox")
+        : canAccessWorkspacePath(user, item.href, SITE_URL))
+    )
+      return;
+    setSearching(false);
+    setQuery("");
+    if (item.type === "conversation") {
+      const id = new URL(
+        item.href,
+        "https://workspace.invalid",
+      ).searchParams.get("conversation");
+      if (id) {
+        let current: any = navigation;
+        while (current) {
+          if (current.getState?.().routeNames?.includes("App")) {
+            current.navigate("App", {
+              screen: "Main",
+              params: {
+                screen: "Inbox",
+                params: { screen: "Conversation", params: { id } },
+              },
+            });
+            return;
+          }
+          current = current.getParent?.();
+        }
+      }
+    }
+    let current: any = navigation;
+    while (current) {
+      if (current.getState?.().routeNames?.includes("WorkspacePage")) {
+        current.navigate("WorkspacePage", {
+          path: item.href,
+          title: item.title,
+        });
+        return;
+      }
+      current = current.getParent?.();
+    }
   };
   return (
     <>
@@ -195,20 +335,77 @@ export const BrandHeader = ({
                 />
               </Pressable>
             ))}
-            {matches.length === 0 && (
-              <View style={c.emptySearch}>
-                <MaterialCommunityIcons
-                  name="magnify-close"
-                  size={34}
-                  color={ui.muted}
-                />
-                <Text style={c.searchResultTitle}>No matching results</Text>
-                <Text style={c.searchResultSub}>
-                  Search for a page. Use the inbox search to find contacts and
-                  messages.
-                </Text>
+            {query.trim().length >= 2 && (
+              <Text style={[c.searchEyebrow, { marginTop: 14 }]}>
+                WORKSPACE
+              </Text>
+            )}
+            {loading && (
+              <View style={c.searchLoading}>
+                <ActivityIndicator color={ui.primary} />
+                <Text style={c.searchResultSub}>Searching your workspace…</Text>
               </View>
             )}
+            {!loading &&
+              results.map((item) => (
+                <Pressable
+                  key={`${item.type}-${item.id}`}
+                  onPress={() => openResult(item)}
+                  style={({ pressed }) => [
+                    c.searchResult,
+                    pressed && c.searchResultPressed,
+                  ]}
+                >
+                  <View style={c.searchResultIcon}>
+                    <MaterialCommunityIcons
+                      name={
+                        item.type === "conversation"
+                          ? "message-text-outline"
+                          : item.type === "contact"
+                            ? "account-outline"
+                            : item.type === "campaign"
+                              ? "bullhorn-outline"
+                              : "magnify"
+                      }
+                      size={22}
+                      color={ui.primary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={c.searchResultTitle}>{item.title}</Text>
+                    <Text numberOfLines={2} style={c.searchResultSub}>
+                      {item.subtitle}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={22}
+                    color={ui.muted}
+                  />
+                </Pressable>
+              ))}
+            {!!searchError && (
+              <Text accessibilityRole="alert" style={c.searchError}>
+                {searchError}
+              </Text>
+            )}
+            {query.trim().length >= 2 &&
+              !loading &&
+              !searchError &&
+              matches.length === 0 &&
+              results.length === 0 && (
+                <View style={c.emptySearch}>
+                  <MaterialCommunityIcons
+                    name="magnify-close"
+                    size={34}
+                    color={ui.muted}
+                  />
+                  <Text style={c.searchResultTitle}>No matching results</Text>
+                  <Text style={c.searchResultSub}>
+                    Try a name, phone number, campaign, template, or message.
+                  </Text>
+                </View>
+              )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -429,6 +626,14 @@ export const c = StyleSheet.create({
     borderBottomColor: ui.line,
   },
   searchResults: { padding: 16, gap: 8 },
+  searchLoading: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  searchError: { color: ui.danger, fontSize: 13, lineHeight: 19, padding: 12 },
   searchEyebrow: {
     fontSize: 11,
     fontWeight: "800",

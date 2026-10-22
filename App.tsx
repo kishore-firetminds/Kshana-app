@@ -5,20 +5,22 @@ import { AppNavigation } from "./src/navigation";
 import { ActivityIndicator, View } from "react-native";
 import {
   useFonts,
-  Geist_400Regular,
-  Geist_500Medium,
-  Geist_600SemiBold,
-  Geist_700Bold,
-  Geist_800ExtraBold,
-} from "@expo-google-fonts/geist";
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from "@expo-google-fonts/inter";
+import { Audiowide_400Regular } from "@expo-google-fonts/audiowide";
 import { ui } from "./src/figmaTheme";
 export default function App() {
   const [loaded, fontError] = useFonts({
-    Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
-    Geist_800ExtraBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    Audiowide_400Regular,
   });
   if (!loaded && !fontError)
     return (

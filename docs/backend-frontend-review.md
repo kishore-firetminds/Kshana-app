@@ -71,6 +71,12 @@ request. Native preparation followed by loading the workspace succeeded. No
 credentials are injected into JavaScript or URLs. The native hamburger replaces
 the duplicated web shell header; feature-specific controls remain intact.
 
+Android workspace regression (2026-10-22): removed the WebView `incognito`
+prop because it clears the shared native cookie store after session preparation,
+causing authenticated workspace pages to redirect to `/login`. Workspace pages
+still disable their WebView cache, while the server bootstrap overwrites the
+HttpOnly authentication cookies for the current signed-in account.
+
 Live Android verification: campaign list and create form; live template list
 and template creation form. Further verification results are recorded below.
 
@@ -93,8 +99,8 @@ Final Android verification (2026-09-07):
   the web application's permissions, validation, and provider requirements.
 
 Theme alignment: native light-theme tokens are now generated from the frontend's
-CSS, with bundled Geist font weights, green primary controls, cream/orange drawer
-selection, warm backgrounds, and matching borders/surfaces. Removed the native
+CSS, with bundled Inter font weights, emerald primary controls, mint drawer
+selection, cool backgrounds, and matching borders/surfaces. Removed the native
 purple glass tab treatment. Verified native dashboard rendering at phone size
 (1080x2400, density 420) and tablet size (1600x2560, density 240), including the
 permanent drawer. Long workspace names truncate within the drawer card. iOS

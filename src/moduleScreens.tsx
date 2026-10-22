@@ -2,19 +2,24 @@ import React from "react";
 import { View } from "react-native";
 import { WorkspaceScreen } from "./WorkspaceScreen";
 import { useAppStore } from "./store";
-import { can } from "./api/types";
+import { canAccess } from "./access";
 import { AccessNotice, l } from "./liveUi";
 import { BrandHeader } from "./figmaComponents";
 import { MobileAnalyticsScreen } from "./MobileAnalyticsScreen";
 
 export const moduleConfig: Record<
   string,
-  { permission?: string; title: string; web: string }
+  { permission?: string; platformOnly?: boolean; title: string; web: string }
 > = {
   Templates: {
     permission: "whatsapp_templates.read",
     title: "Message templates",
     web: "/app/templates",
+  },
+  Flows: {
+    permission: "whatsapp_templates.read",
+    title: "WhatsApp Flows",
+    web: "/app/flows",
   },
   Automations: {
     permission: "automation_flows.read",
@@ -63,6 +68,43 @@ export const moduleConfig: Record<
     title: "Developers",
     web: "/app/developer",
   },
+  Billing: {
+    permission: "billing.read",
+    title: "Billing & Usage",
+    web: "/app/billing",
+  },
+  Usage: {
+    permission: "billing.read",
+    title: "Message Usage",
+    web: "/app/usage",
+  },
+  MetaPayments: {
+    permission: "billing.read",
+    title: "Meta Payments",
+    web: "/app/meta-payments",
+  },
+  Compliance: {
+    permission: "settings.read",
+    title: "Messaging Compliance",
+    web: "/app/settings/messaging-compliance",
+  },
+  IndustryCatalog: {
+    permission: "platform.settings.read",
+    platformOnly: true,
+    title: "Industry Catalog",
+    web: "/app/platform/catalog",
+  },
+  PlatformAdmin: {
+    permission: "platform.workspaces.read",
+    platformOnly: true,
+    title: "Platform Admin",
+    web: "/app/platform",
+  },
+  AuditLogs: {
+    platformOnly: true,
+    title: "Audit Logs",
+    web: "/app/platform/audit-logs",
+  },
   Settings: {
     permission: "settings.read",
     title: "Workspace settings",
@@ -73,7 +115,7 @@ export const moduleConfig: Record<
 export function ModuleScreen({ route, navigation }: any) {
   const user = useAppStore((s) => s.user);
   const config = moduleConfig[route.name];
-  if (config.permission && !can(user, config.permission))
+  if (!canAccess(user, config))
     return (
       <View style={l.page}>
         <BrandHeader onAvatar={() => navigation.openDrawer()} />

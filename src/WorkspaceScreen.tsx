@@ -32,11 +32,20 @@ import {
   mobilePurchaseGuardScript,
 } from "./api/mobilePurchases";
 import { BrandHeader } from "./figmaComponents";
-import { Button, l } from "./liveUi";
+import { AccessNotice, Button, l } from "./liveUi";
 import { KeyboardFrame } from "./KeyboardLayout";
 import { workspaceViewportScript } from "./api/workspaceViewport";
+import { useAppStore } from "./store";
+import { canAccessWorkspacePath } from "./access";
 
 export function WorkspacePage({ route }: any) {
+  const user = useAppStore((state) => state.user);
+  if (!canAccessWorkspacePath(user, route.params.path, SITE_URL))
+    return (
+      <View style={l.page}>
+        <AccessNotice />
+      </View>
+    );
   return (
     <WorkspaceScreen path={route.params.path} title={route.params.title} />
   );
@@ -196,7 +205,10 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             ref={web}
             source={source}
             style={{ flex: 1, opacity: ready ? 1 : 0 }}
-            incognito
+            // The authenticated bootstrap above writes HttpOnly cookies into
+            // the native store. Android's `incognito` prop clears that shared
+            // store as this WebView mounts, which redirects a valid session to
+            // /login. Cache remains disabled without deleting auth cookies.
             sharedCookiesEnabled
             cacheEnabled={false}
             javaScriptEnabled
@@ -269,10 +281,7 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
               return false;
             }}
             onNavigationStateChange={(state) => {
-              setBack(
-                state.canGoBack &&
-                  state.url !== target,
-              );
+              setBack(state.canGoBack && state.url !== target);
             }}
             onError={() =>
               setError(

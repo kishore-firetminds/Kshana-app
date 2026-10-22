@@ -73,13 +73,15 @@ configured API URL.
 - The hamburger menu also exposes contacts, leads, businesses, follow-ups,
   template library, quick replies, reports, team, integrations/developer tools,
   billing, usage, Meta payments, settings, and support, subject to permissions.
-- Embedded screens share the signed-in session. An empty WebView first clears
-  old cookies; a native HTTPS request obtains HttpOnly cookies and synchronizes
-  the refreshed access token. Credentials never enter URLs or injected scripts.
+- Embedded screens share the signed-in session. A native HTTPS request obtains
+  and overwrites HttpOnly session cookies and synchronizes the refreshed access
+  token before the WebView loads. Credentials never enter URLs or injected scripts.
   Embedded workspaces require SITE_URL and API_URL to have the same HTTPS origin.
-- Permissions and read-only subscription state control available actions. The
-  server remains authoritative. Opted-out WhatsApp contacts cannot receive
-  customer replies; internal notes follow their separate permission.
+- Permissions hide unauthorized bottom tabs, drawer modules, search results,
+  notification destinations, and embedded workspace routes. Mutation permissions
+  and read-only subscription state also control individual actions. The server
+  remains authoritative. Opted-out WhatsApp contacts cannot receive customer
+  replies; internal notes follow their separate permission.
 - Native back and reload controls accompany embedded workflows. External payment
   or provider links can open their corresponding external apps/browser.
   Switching away from an embedded module closes its WebView; save drafts first.
@@ -119,16 +121,17 @@ findings, and validation boundaries.
 
 ## Shared visual theme
 
-Native screens use the web app's light theme: forest-green primary controls,
-orange/cream accents, warm white surfaces, and Geist typography. Static Geist
+Native screens use the approved v2 identity: emerald/forest controls, cool
+white surfaces, Inter body typography, and Audiowide for short brand statements. Static Inter
 font faces are bundled for consistent weight rendering on Android and iOS.
 The same tokens are used at phone and tablet widths, including native navigation
 and the loading state around embedded web modules.
 
-`src/webTheme.json` is generated from `kshana-fe/app/globals.css`. To update it:
+`src/webTheme.json` imports semantic tokens from the web app and then applies
+the approved v2 brand overrides. To update it:
 
 ```bash
-npm run theme:sync
+npm run theme:sync -- /path/to/KshanaAPI-FE/app/globals.css
 # Or pass a different frontend CSS path:
 npm run theme:sync -- ../kshana-fe/app/globals.css
 ```

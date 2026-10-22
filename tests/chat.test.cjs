@@ -115,6 +115,7 @@ async function harness(data, params = { id: "chat" }, pages = []) {
       contactName: () => "Demo",
       humanize: (value) => value,
     },
+    "./access": { canAccessTab: () => true },
     "./store": {
       useAppStore: (selector) => selector({ user: { id: "user" } }),
     },

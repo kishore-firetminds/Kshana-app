@@ -31,11 +31,16 @@ import {
   Home,
   Inbox,
   LayoutGrid,
+  LibraryBig,
   LogOut,
+  ReceiptIndianRupee,
+  ScrollText,
   Send,
   Settings,
+  ShieldCheck,
   Users,
   WalletCards,
+  Waypoints,
   Zap,
   UserRound,
 } from "lucide-react-native";
@@ -58,7 +63,7 @@ import { BrandHeader, Page, Surface } from "./figmaComponents";
 import { ui } from "./figmaTheme";
 import { useAppStore } from "./store";
 import { ModuleScreen, moduleConfig } from "./moduleScreens";
-import { can } from "./api/types";
+import { canAccess, canAccessTab } from "./access";
 import { Avatar, Button, Feedback, l } from "./liveUi";
 import { api } from "./api";
 import type { Notification } from "./api/types";
@@ -77,7 +82,8 @@ async function openPushNotification(data: Record<string, unknown>) {
   if (!navigationRef.isReady() || !useAppStore.getState().authenticated)
     return false;
   const user = useAppStore.getState().user;
-  if (!matchesNotification(data, user)) return false;
+  if (!matchesNotification(data, user) || !canAccessTab(user, "Alerts"))
+    return false;
   let notification: Notification | null = null;
   try {
     notification = await api.get<Notification>(
@@ -88,7 +94,9 @@ async function openPushNotification(data: Record<string, unknown>) {
   }
   if (useAppStore.getState().user !== user || !navigationRef.isReady())
     return false;
-  const conversationId = notificationConversationId(notification?.link);
+  const conversationId = canAccessTab(user, "Inbox")
+    ? notificationConversationId(notification?.link)
+    : null;
   navigationRef.navigate("App", {
     screen: "Main",
     params: conversationId
@@ -145,6 +153,7 @@ function InboxNav() {
   );
 }
 function MainTabs() {
+  const user = useAppStore((state) => state.user);
   return (
     <Tabs.Navigator
       tabBar={(props) => <BottomNavigation {...props} />}
@@ -154,10 +163,18 @@ function MainTabs() {
         tabBarHideOnKeyboard: true,
       }}
     >
-      <Tabs.Screen name="Home" component={FigmaHome} />
-      <Tabs.Screen name="Inbox" component={InboxNav} />
-      <Tabs.Screen name="Campaigns" component={FigmaCampaigns} />
-      <Tabs.Screen name="Alerts" component={FigmaAlerts} />
+      {canAccessTab(user, "Home") && (
+        <Tabs.Screen name="Home" component={FigmaHome} />
+      )}
+      {canAccessTab(user, "Inbox") && (
+        <Tabs.Screen name="Inbox" component={InboxNav} />
+      )}
+      {canAccessTab(user, "Campaigns") && (
+        <Tabs.Screen name="Campaigns" component={FigmaCampaigns} />
+      )}
+      {canAccessTab(user, "Alerts") && (
+        <Tabs.Screen name="Alerts" component={FigmaAlerts} />
+      )}
       <Tabs.Screen name="Profile" component={FigmaProfile} />
     </Tabs.Navigator>
   );
@@ -168,6 +185,7 @@ const groups = [
     "MESSAGING",
     [
       ["Templates", "Message Templates", FileText],
+      ["Flows", "WhatsApp Flows", Waypoints],
       ["Automations", "Automations", Zap],
       ["Library", "Template Library", FileText],
       ["QuickReplies", "Quick Replies", Send],
@@ -189,6 +207,23 @@ const groups = [
       ["Team", "Team Management", Users],
       ["Integrations", "Integrations", LayoutGrid],
       ["Developer", "Developers", LayoutGrid],
+    ],
+  ],
+  [
+    "BILLING & COMPLIANCE",
+    [
+      ["Billing", "Billing & Usage", ReceiptIndianRupee],
+      ["Usage", "Message Usage", BarChart3],
+      ["MetaPayments", "Meta Payments", WalletCards],
+      ["Compliance", "Messaging Compliance", ShieldCheck],
+    ],
+  ],
+  [
+    "PLATFORM",
+    [
+      ["IndustryCatalog", "Industry Catalog", LibraryBig],
+      ["PlatformAdmin", "Platform Admin", ShieldCheck],
+      ["AuditLogs", "Audit Logs", ScrollText],
     ],
   ],
   [
@@ -221,23 +256,24 @@ function AppDrawer(p: DrawerContentComponentProps) {
             </Text>
           </View>
         </View>
-        <Pressable
-          style={p.state.index === 0 ? n.activeItem : n.drawerItem}
-          onPress={() => p.navigation.navigate("Main", { screen: "Home" })}
-        >
-          <Home color={ui.primary} size={20} />
-          <Text style={n.activeText}>Dashboard</Text>
-        </Pressable>
-        {groups.map(([group, items]) => (
-          <View key={group}>
-            <Text style={n.group}>{group}</Text>
-            {items
-              .filter(
-                ([key]) =>
-                  !moduleConfig[key].permission ||
-                  can(user, moduleConfig[key].permission!),
-              )
-              .map(([key, label, Icon]) => (
+        {canAccessTab(user, "Home") && (
+          <Pressable
+            style={p.state.index === 0 ? n.activeItem : n.drawerItem}
+            onPress={() => p.navigation.navigate("Main", { screen: "Home" })}
+          >
+            <Home color={ui.primary} size={20} />
+            <Text style={n.activeText}>Dashboard</Text>
+          </Pressable>
+        )}
+        {groups.map(([group, items]) => {
+          const visible = items.filter(([key]) =>
+            canAccess(user, moduleConfig[key]),
+          );
+          if (visible.length === 0) return null;
+          return (
+            <View key={group}>
+              <Text style={n.group}>{group}</Text>
+              {visible.map(([key, label, Icon]) => (
                 <Pressable
                   key={key}
                   style={
@@ -259,8 +295,9 @@ function AppDrawer(p: DrawerContentComponentProps) {
                   </Text>
                 </Pressable>
               ))}
-          </View>
-        ))}
+            </View>
+          );
+        })}
         <View style={n.divider} />
         <Pressable
           style={n.drawerItem}

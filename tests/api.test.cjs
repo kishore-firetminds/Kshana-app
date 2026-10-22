@@ -22,6 +22,12 @@ const {
   mediaLinks,
 } = require("../src/api/messaging.ts");
 const { canMutate } = require("../src/api/types.ts");
+const {
+  canAccess,
+  canAccessRoute,
+  canAccessTab,
+  canAccessWorkspacePath,
+} = require("../src/access.ts");
 const tokens = { accessToken: "access-one", refreshToken: "refresh-one" };
 const user = {
   id: "user-one",
@@ -266,6 +272,44 @@ test("read-only plans and missing permissions disable sending", () => {
     ),
     true,
   );
+});
+test("mobile navigation hides unauthorized tabs, routes, and workspace links", () => {
+  const agent = {
+    role: "AGENT",
+    permissions: [
+      "conversations.read.own",
+      "contacts.read",
+      "whatsapp_templates.read",
+    ],
+  };
+  assert.equal(canAccessTab(agent, "Inbox"), true);
+  assert.equal(canAccessTab(agent, "Campaigns"), false);
+  assert.equal(canAccessTab(agent, "Profile"), true);
+  assert.equal(canAccessRoute(agent, "Contacts"), true);
+  assert.equal(canAccessRoute(agent, "Billing"), false);
+  assert.equal(canAccessWorkspacePath(agent, "/app/templates/new"), true);
+  assert.equal(canAccessWorkspacePath(agent, "/app/campaigns/new"), false);
+  assert.equal(canAccessWorkspacePath(agent, "/app/templates-private"), false);
+  assert.equal(
+    canAccessWorkspacePath(
+      agent,
+      "https://evil.example/app/templates",
+      "https://dev.kshanaapi.com",
+    ),
+    false,
+  );
+  assert.equal(canAccessWorkspacePath(agent, "/app/unknown"), false);
+  assert.equal(canAccess(agent, { platformOnly: true }), false);
+
+  const platformAdmin = {
+    role: "PLATFORM_ADMIN",
+    permissions: ["platform.settings.read"],
+  };
+  assert.equal(
+    canAccessWorkspacePath(platformAdmin, "/app/platform/catalog"),
+    true,
+  );
+  assert.equal(canAccessWorkspacePath(agent, "/app/platform/catalog"), false);
 });
 test("malformed envelopes and backend validation messages are surfaced", () => {
   assert.throws(() => unwrap("<html>Not found</html>"));
@@ -605,7 +649,7 @@ test("embedded purchase guard blocks SPA and popup checkout without breaking wor
   assert.equal(styleCalls.length, 2);
 });
 
-test("embedded viewport reveals obscured fields on keyboard resize and stays origin scoped", () => {
+test("embedded viewport hides only the web shell header, reveals fields, and stays origin scoped", () => {
   const vm = require("node:vm");
   const {
     workspaceViewportScript,
@@ -613,7 +657,16 @@ test("embedded viewport reveals obscured fields on keyboard resize and stays ori
   const events = {},
     sizes = [],
     reveals = [];
-  let mounted = false;
+  let mounted = false,
+    styleText = "",
+    hiddenHeader = false,
+    shellMounted = false;
+  const shellHeader = {
+    setAttribute: (name, value) => {
+      if (name === "data-kshana-mobile-shell-header" && value === "true")
+        hiddenHeader = true;
+    },
+  };
   const viewport = {
     height: 700,
     offsetTop: 0,
@@ -627,8 +680,9 @@ test("embedded viewport reveals obscured fields on keyboard resize and stays ori
     requestAnimationFrame: (fn) => fn(),
     document: {
       head: {
-        appendChild() {
+        appendChild(element) {
           mounted = true;
+          styleText = element.textContent;
         },
       },
       getElementById: () => mounted,
@@ -636,6 +690,10 @@ test("embedded viewport reveals obscured fields on keyboard resize and stays ori
       documentElement: {
         style: { setProperty: (key, value) => sizes.push(value) },
       },
+      querySelectorAll: (selector) =>
+        selector === ".workspace-header" && shellMounted
+          ? [{ closest: (value) => (value === "header" ? shellHeader : null) }]
+          : [],
       addEventListener() {},
       activeElement: {
         matches: () => true,
@@ -645,6 +703,11 @@ test("embedded viewport reveals obscured fields on keyboard resize and stays ori
     },
   };
   vm.runInNewContext(workspaceViewportScript("https://kshanaapi.com"), context);
+  assert.equal(hiddenHeader, false);
+  shellMounted = true;
+  vm.runInNewContext(workspaceViewportScript("https://kshanaapi.com"), context);
+  assert.equal(hiddenHeader, true);
+  assert.match(styleText, /data-kshana-mobile-shell-header/);
   viewport.height = 300;
   events.resize();
   assert.equal(sizes.at(-1), "300px");

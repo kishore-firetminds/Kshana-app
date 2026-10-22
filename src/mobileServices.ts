@@ -28,7 +28,7 @@ async function configureNotificationChannel() {
     await module.setNotificationChannelAsync("workspace", {
       name: "Workspace alerts",
       importance: module.AndroidImportance.HIGH,
-      lightColor: "#0e5132",
+      lightColor: "#00856a",
       sound: "default",
     });
 }
@@ -102,7 +102,10 @@ export async function setAnalyticsEnabled(enabled: boolean) {
   const current = generation;
   await SecureStore.setItemAsync(key("analytics"), String(enabled));
   if (current !== generation) return;
-  mobilePreferences.setState({ analytics: enabled, analyticsConsentRequired: false });
+  mobilePreferences.setState({
+    analytics: enabled,
+    analyticsConsentRequired: false,
+  });
   if (!enabled) queue = [];
 }
 export async function eraseAnalytics() {
@@ -261,7 +264,8 @@ async function registerPushInternal(requestPermission = false) {
     !requestPermission &&
     lastPushRegistration?.ownerKey === ownerKey &&
     lastPushRegistration.token === token &&
-    Date.now() - lastPushRegistration.registeredAt < PUSH_REGISTRATION_COOLDOWN_MS
+    Date.now() - lastPushRegistration.registeredAt <
+      PUSH_REGISTRATION_COOLDOWN_MS
   )
     return;
   await api.request("/mobile/devices", {

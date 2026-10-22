@@ -1,5 +1,5 @@
 import { ScrollView } from "./KeyboardLayout";
-import { Text, TextInput } from "./themedText";
+import { DisplayText, Text, TextInput } from "./themedText";
 import React, { useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { BrandLogo } from "./BrandLogo";
@@ -94,9 +94,9 @@ export function FigmaLogin() {
             <BrandLogo variant="primary" width={280} />
           </View>
           <View style={s.loginIntro}>
-            <Text style={s.welcome}>
+            <DisplayText style={s.welcome}>
               {forgot ? "Reset your password" : "Welcome back"}
-            </Text>
+            </DisplayText>
             <Text style={s.secure}>
               {forgot
                 ? "We’ll send a secure reset link to your inbox."

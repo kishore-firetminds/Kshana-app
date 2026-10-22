@@ -66,6 +66,12 @@ export type DrawerParamList = {
   Developer: undefined;
   Usage: undefined;
   MetaPayments: undefined;
+  Billing: undefined;
+  Flows: undefined;
+  Compliance: undefined;
+  IndustryCatalog: undefined;
+  PlatformAdmin: undefined;
+  AuditLogs: undefined;
   Templates: undefined;
   Automations: undefined;
   Analytics: undefined;
