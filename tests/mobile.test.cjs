@@ -5,7 +5,11 @@ const vm = require("node:vm");
 const ts = require("typescript");
 const { randomUUID } = require("node:crypto");
 
-function harness(post = async () => {}, native = false, allowPermission = true) {
+function harness(
+  post = async () => {},
+  native = false,
+  allowPermission = true,
+) {
   const storage = new Map();
   const calls = [];
   let granted = false;
@@ -17,6 +21,8 @@ function harness(post = async () => {}, native = false, allowPermission = true) 
     },
     request: async (path, config) => {
       calls.push({ path, config });
+      if (path.startsWith("/notifications?"))
+        return { items: [], meta: { total: 4 } };
     },
   };
   const mocks = {
@@ -39,6 +45,10 @@ function harness(post = async () => {}, native = false, allowPermission = true) 
       },
       getExpoPushTokenAsync: async () => ({ data: "ExpoPushToken[test]" }),
       dismissAllNotificationsAsync: async () => {},
+      setBadgeCountAsync: async (badgeCount) => {
+        calls.push({ badgeCount });
+        return true;
+      },
     },
     "expo-crypto": { randomUUID },
     "expo-secure-store": {
@@ -79,7 +89,11 @@ function harness(post = async () => {}, native = false, allowPermission = true) 
   });
   return { service: exports, calls, promptCount: () => prompts };
 }
-const user = { id: "user-a", organizationId: "org-a" };
+const user = {
+  id: "user-a",
+  organizationId: "org-a",
+  permissions: ["notifications.read"],
+};
 test("mobile analytics is opt-in and rejects arbitrary screen content", async () => {
   const { service: s, calls } = harness();
   await s.loadMobilePreferences(user);
@@ -182,11 +196,24 @@ test("automatic registration preserves explicit opt-out but logout does not disa
   await s.unregisterPush(false);
   await s.loadMobilePreferences(user);
   await s.registerPush();
-  assert.equal(calls.at(-1).config.method, "PUT");
+  assert.equal(calls.filter((call) => call.config?.method === "PUT").length, 2);
   await s.unregisterPush();
   const count = calls.length;
   await s.registerPush();
   assert.equal(calls.length, count);
+});
+
+test("notification badge mirrors unread alerts and clears on opt-out", async () => {
+  const { service: s, calls } = harness(undefined, true);
+  await s.requestInitialPushPermission();
+  await s.loadMobilePreferences(user);
+  await s.registerPush();
+  assert.equal(
+    calls.some((call) => call.badgeCount === 4),
+    true,
+  );
+  await s.unregisterPush();
+  assert.equal(calls.at(-1).badgeCount, 0);
 });
 
 test("denying first-launch permission never registers a push token or repeatedly prompts", async () => {
@@ -197,7 +224,10 @@ test("denying first-launch permission never registers a push token or repeatedly
   await s.requestInitialPushPermission();
   await s.registerPush();
   assert.equal(promptCount(), 1);
-  assert.equal(calls.some(call => call.config?.method === "PUT"), false);
+  assert.equal(
+    calls.some((call) => call.config?.method === "PUT"),
+    false,
+  );
 });
 
 test("message routing accepts inbox links and rejects external and malformed destinations", () => {

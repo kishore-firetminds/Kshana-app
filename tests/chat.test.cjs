@@ -116,6 +116,7 @@ async function harness(data, params = { id: "chat" }, pages = []) {
       humanize: (value) => value,
     },
     "./access": { canAccessTab: () => true },
+    "./mobileServices": { syncNotificationBadge: async () => {} },
     "./store": {
       useAppStore: (selector) => selector({ user: { id: "user" } }),
     },

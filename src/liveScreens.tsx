@@ -64,6 +64,7 @@ import {
 import { ui } from "./figmaTheme";
 import { EmojiPicker } from "./EmojiPicker";
 import { canAccessTab } from "./access";
+import { syncNotificationBadge } from "./mobileServices";
 
 function PageHeader({ navigation }: { navigation: any }) {
   return (
@@ -1404,6 +1405,7 @@ export function FigmaAlerts({ navigation }: any) {
           : "/notifications/read-all",
       );
       await resource.refresh();
+      await syncNotificationBadge();
     } catch (error) {
       Alert.alert("Could not update alerts", errorMessage(error));
     } finally {

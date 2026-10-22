@@ -30,7 +30,48 @@ async function configureNotificationChannel() {
       importance: module.AndroidImportance.HIGH,
       lightColor: "#00856a",
       sound: "default",
+      showBadge: true,
     });
+}
+
+async function setNotificationBadge(count: number) {
+  const module = notificationModule();
+  if (!module) return;
+  await module
+    .setBadgeCountAsync(Math.max(0, Math.floor(count)))
+    .catch(() => false);
+}
+
+/** Keep the launcher badge aligned with the authoritative unread-alert total. */
+export async function syncNotificationBadge() {
+  const current = generation;
+  const currentOwner = owner;
+  const canReadNotifications =
+    !!currentOwner?.permissions?.includes("notifications.read");
+  if (
+    !currentOwner ||
+    !canReadNotifications ||
+    !mobilePreferences.getState().push
+  ) {
+    await setNotificationBadge(0);
+    return;
+  }
+  try {
+    const result = await api.request<{
+      meta?: { total?: number };
+    }>("/notifications?page=1&limit=1&unreadOnly=true");
+    if (
+      current !== generation ||
+      owner?.id !== currentOwner.id ||
+      owner?.organizationId !== currentOwner.organizationId
+    )
+      return;
+    const total = result?.meta?.total;
+    if (typeof total === "number" && Number.isFinite(total))
+      await setNotificationBadge(total);
+  } catch {
+    /* Preserve the last known badge when the unread total cannot be refreshed. */
+  }
 }
 
 /** Ask once per installation, including before sign-in. Never re-prompt a denial. */
@@ -44,7 +85,9 @@ export function requestInitialPushPermission(): Promise<void> {
     if (await SecureStore.getItemAsync(storageKey)) return;
     const permission = await module.getPermissionsAsync();
     if (!permission.granted && permission.canAskAgain)
-      await module.requestPermissionsAsync();
+      await module.requestPermissionsAsync({
+        ios: { allowAlert: true, allowBadge: true, allowSound: true },
+      });
     await SecureStore.setItemAsync(storageKey, "true");
   })().finally(() => {
     permissionPrompt = null;
@@ -84,7 +127,10 @@ export async function loadMobilePreferences(user: CurrentUser | null) {
     push: false,
     loaded: false,
   });
-  if (!user) return;
+  if (!user) {
+    await setNotificationBadge(0);
+    return;
+  }
   const [analytics, push] = await Promise.all([
     SecureStore.getItemAsync(key("analytics")),
     SecureStore.getItemAsync(key("push")),
@@ -194,7 +240,7 @@ export function notificationModule() {
           shouldShowBanner: matches,
           shouldShowList: matches,
           shouldPlaySound: matches,
-          shouldSetBadge: false,
+          shouldSetBadge: matches,
         };
       },
     });
@@ -247,7 +293,9 @@ async function registerPushInternal(requestPermission = false) {
   await configureNotificationChannel();
   let permission = await module.getPermissionsAsync();
   if (!permission.granted && requestPermission)
-    permission = await module.requestPermissionsAsync();
+    permission = await module.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
   if (!permission.granted) {
     if (requestPermission)
       throw new Error(
@@ -276,6 +324,7 @@ async function registerPushInternal(requestPermission = false) {
   lastPushRegistration = { ownerKey, token, registeredAt: Date.now() };
   await SecureStore.setItemAsync(key("push"), "true");
   mobilePreferences.setState({ push: true });
+  await syncNotificationBadge();
 }
 export async function unregisterPush(disable = true) {
   if (!owner) return;
@@ -292,6 +341,7 @@ export async function unregisterPush(disable = true) {
   if (current !== generation) return;
   mobilePreferences.setState({ push: false });
   await notificationModule()?.dismissAllNotificationsAsync();
+  await setNotificationBadge(0);
 }
 export function matchesNotification(
   data: Record<string, unknown>,

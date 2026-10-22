@@ -8,6 +8,7 @@ import {
   notificationModule,
   registerPush,
   requestInitialPushPermission,
+  syncNotificationBadge,
 } from "./mobileServices";
 
 export function MobileLifecycle({
@@ -33,7 +34,10 @@ export function MobileLifecycle({
   }, [user?.id, user?.organizationId]);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") void registerPush().catch(() => {});
+      if (state === "active")
+        void registerPush()
+          .then(syncNotificationBadge)
+          .catch(() => {});
       void flushAnalytics();
     });
     const interval = setInterval(() => void flushAnalytics(), 15000);
@@ -67,6 +71,11 @@ export function MobileLifecycle({
       } else handledResponse.current = "";
     };
     const taps = module.addNotificationResponseReceivedListener(handle);
+    const received = module.addNotificationReceivedListener((notification) => {
+      const current = useAppStore.getState().user;
+      if (matchesNotification(notification.request.content.data, current))
+        void syncNotificationBadge();
+    });
     const tokens = module.addPushTokenListener(
       () => void registerPush().catch(() => {}),
     );
@@ -78,6 +87,7 @@ export function MobileLifecycle({
       .catch(() => {});
     return () => {
       taps.remove();
+      received.remove();
       tokens.remove();
     };
   }, [onOpenNotification, user?.id, navigationReady]);
