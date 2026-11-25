@@ -1,4 +1,14 @@
-import type { Message, UploadedFile } from "./types";
+import type { Conversation, Message, UploadedFile } from "./types";
+
+export function hasReplyWindow(
+  conversation: Conversation | null,
+  now = Date.now(),
+) {
+  if (!conversation) return false;
+  if (conversation.channelType !== "WHATSAPP") return true;
+  const inbound = Date.parse(conversation.lastInboundAt || "");
+  return Number.isFinite(inbound) && inbound <= now && now - inbound < 86400000;
+}
 export type Attachment = {
   uri: string;
   name: string;

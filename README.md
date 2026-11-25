@@ -119,6 +119,13 @@ npm test
 See `docs/backend-frontend-review.md` for the reviewed contracts, upstream
 findings, and validation boundaries.
 
+See [mobile/web parity](docs/mobile-web-parity.md) for native number selection,
+team number access, sender-pinned template sending, the WhatsApp reply window,
+human-reviewed native AI drafts/summaries, and the new permission-aware web-module
+entry points. Normal builds retain read-only call history; opt-in native QA builds
+add foreground answer/outbound/mute/hang-up. Recording stays off. Background calling
+and real-device verification are pending; see [native calling](docs/native-calling.md).
+
 ## Shared visual theme
 
 Native screens use the approved v2 identity: emerald/forest controls, cool

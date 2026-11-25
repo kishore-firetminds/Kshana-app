@@ -2,15 +2,42 @@ import React from "react";
 import { View } from "react-native";
 import { WorkspaceScreen } from "./WorkspaceScreen";
 import { useAppStore } from "./store";
-import { canAccess } from "./access";
+import { AccessRule, canAccess } from "./access";
 import { AccessNotice, l } from "./liveUi";
 import { BrandHeader } from "./figmaComponents";
 import { MobileAnalyticsScreen } from "./MobileAnalyticsScreen";
+import { NumberAccessScreen } from "./WhatsappNumberAccess";
+import { MobileCallsScreen } from "./MobileCallsScreen";
 
 export const moduleConfig: Record<
   string,
-  { permission?: string; platformOnly?: boolean; title: string; web: string }
+  AccessRule & { title: string; web: string }
 > = {
+  Calls: {
+    anyPermission: ["conversations.read.all", "conversations.read.own"],
+    title: "WhatsApp call history",
+    web: "/app/calls",
+  },
+  AiAgents: {
+    permission: "ai_agents.read",
+    title: "AI agents",
+    web: "/app/ai-agents",
+  },
+  Segments: {
+    permission: "contacts.read",
+    title: "Contact segments",
+    web: "/app/contacts/segments",
+  },
+  Attributes: {
+    permission: "contacts.read",
+    title: "Contact attributes",
+    web: "/app/contacts/attributes",
+  },
+  CommercialInvoices: {
+    permission: "billing.read",
+    title: "Commercial invoices",
+    web: "/app/commercial-invoices",
+  },
   Templates: {
     permission: "whatsapp_templates.read",
     title: "Message templates",
@@ -33,7 +60,7 @@ export const moduleConfig: Record<
   },
   Leads: { permission: "leads.read", title: "Leads", web: "/app/leads" },
   Companies: {
-    permission: "contacts.read",
+    permission: "companies.read",
     title: "Businesses",
     web: "/app/companies",
   },
@@ -115,7 +142,7 @@ export const moduleConfig: Record<
 export function ModuleScreen({ route, navigation }: any) {
   const user = useAppStore((s) => s.user);
   const config = moduleConfig[route.name];
-  if (!canAccess(user, config))
+  if (!config || !canAccess(user, config))
     return (
       <View style={l.page}>
         <BrandHeader onAvatar={() => navigation.openDrawer()} />
@@ -124,5 +151,9 @@ export function ModuleScreen({ route, navigation }: any) {
     );
   if (route.name === "Analytics")
     return <MobileAnalyticsScreen navigation={navigation} />;
+  if (route.name === "Team")
+    return <NumberAccessScreen navigation={navigation} />;
+  if (route.name === "Calls")
+    return <MobileCallsScreen navigation={navigation} />;
   return <WorkspaceScreen path={config.web} title={config.title} />;
 }

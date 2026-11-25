@@ -15,6 +15,7 @@ import {
   createNavigationContainerRef,
 } from "@react-navigation/native";
 import { MobileLifecycle } from "./MobileLifecycle";
+import { MobileCallingProvider } from "./calling/MobileCallingProvider";
 import { MobileAnalyticsConsent } from "./MobileAnalyticsConsent";
 import { trackMobileEvent } from "./mobileServices";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -43,6 +44,10 @@ import {
   Waypoints,
   Zap,
   UserRound,
+  Phone,
+  Bot,
+  Tags,
+  ListFilter,
 } from "lucide-react-native";
 import {
   DrawerParamList,
@@ -184,6 +189,8 @@ const groups = [
   [
     "MESSAGING",
     [
+      ["Calls", "WhatsApp Call History", Phone],
+      ["AiAgents", "AI Agents", Bot],
       ["Templates", "Message Templates", FileText],
       ["Flows", "WhatsApp Flows", Waypoints],
       ["Automations", "Automations", Zap],
@@ -195,9 +202,12 @@ const groups = [
     "CONTACTS & FOLLOW-UPS",
     [
       ["Contacts", "Contacts", Users],
+      ["Segments", "Segments", ListFilter],
+      ["Attributes", "Attributes", Tags],
       ["Leads", "Leads", UserRound],
       ["Companies", "Businesses", LayoutGrid],
       ["Tasks", "Follow-ups", Bell],
+      ["CommercialInvoices", "Commercial Invoices", ReceiptIndianRupee],
     ],
   ],
   [
@@ -384,16 +394,20 @@ export function AppNavigation() {
         onOpenNotification={openPushNotification}
       />
       {auth ? <MobileAnalyticsConsent /> : null}
-      <Root.Navigator screenOptions={{ headerShown: false, animation: "fade" }}>
-        {auth ? (
-          <>
-            <Root.Screen name="App" component={DrawerNav} />
-            <Root.Screen name="WorkspacePage" component={WorkspacePage} />
-          </>
-        ) : (
-          <Root.Screen name="Login" component={FigmaLogin} />
-        )}
-      </Root.Navigator>
+      <MobileCallingProvider>
+        <Root.Navigator
+          screenOptions={{ headerShown: false, animation: "fade" }}
+        >
+          {auth ? (
+            <>
+              <Root.Screen name="App" component={DrawerNav} />
+              <Root.Screen name="WorkspacePage" component={WorkspacePage} />
+            </>
+          ) : (
+            <Root.Screen name="Login" component={FigmaLogin} />
+          )}
+        </Root.Navigator>
+      </MobileCallingProvider>
     </NavigationContainer>
   );
 }

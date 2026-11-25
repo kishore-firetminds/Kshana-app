@@ -34,6 +34,13 @@ export const canAccessTab = (user: CurrentUser | null, tab: string) =>
 
 const routeAccess: Record<string, AccessRule> = {
   Contacts: { permission: "contacts.read" },
+  Segments: { permission: "contacts.read" },
+  Attributes: { permission: "contacts.read" },
+  Calls: {
+    anyPermission: ["conversations.read.all", "conversations.read.own"],
+  },
+  AiAgents: { permission: "ai_agents.read" },
+  CommercialInvoices: { permission: "billing.read" },
   Templates: { permission: "whatsapp_templates.read" },
   Flows: { permission: "whatsapp_templates.read" },
   Automations: { permission: "automation_flows.read" },
@@ -79,9 +86,20 @@ const workspaceRules: Array<{
     rule: { permission: "automation_flows.read" },
   },
   {
-    matches: (path) =>
-      inSection(path, "/app/contacts") || inSection(path, "/app/companies"),
+    matches: (path) => inSection(path, "/app/contacts"),
     rule: { permission: "contacts.read" },
+  },
+  {
+    matches: (path) => inSection(path, "/app/companies"),
+    rule: { permission: "companies.read" },
+  },
+  {
+    matches: (path) => inSection(path, "/app/ai-agents"),
+    rule: { permission: "ai_agents.read" },
+  },
+  {
+    matches: (path) => inSection(path, "/app/commercial-invoices"),
+    rule: { permission: "billing.read" },
   },
   {
     matches: (path) => inSection(path, "/app/leads"),

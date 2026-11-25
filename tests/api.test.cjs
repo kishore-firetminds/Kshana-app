@@ -28,6 +28,16 @@ const {
   canAccessTab,
   canAccessWorkspacePath,
 } = require("../src/access.ts");
+test("network errors use the everyday product name without changing app identifiers", () => {
+  assert.equal(
+    errorMessage(new axios.AxiosError("Network Error", "ERR_NETWORK")),
+    "Unable to reach KshanaAPI. Check your connection and try again.",
+  );
+  const config = require("../app.json").expo;
+  assert.equal(config.name, "KshanaAPI");
+  assert.equal(config.android.package, "com.firetminds.kshanaapi");
+  assert.equal(config.ios.bundleIdentifier, "com.firetminds.kshanaapi");
+});
 const tokens = { accessToken: "access-one", refreshToken: "refresh-one" };
 const user = {
   id: "user-one",

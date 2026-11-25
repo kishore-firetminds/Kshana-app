@@ -32,6 +32,7 @@ import {
   mergeMessages,
   messageTimeline,
   messagePayload,
+  hasReplyWindow,
 } from "./api/messaging";
 import {
   Campaign,
@@ -65,6 +66,9 @@ import { ui } from "./figmaTheme";
 import { EmojiPicker } from "./EmojiPicker";
 import { canAccessTab } from "./access";
 import { syncNotificationBadge } from "./mobileServices";
+import { MemberNumberSelector } from "./WhatsappNumberAccess";
+import { MobileAiAssistance } from "./MobileAiAssistance";
+import { MobileCallOptions } from "./calling/MobileCallOptions";
 
 function PageHeader({ navigation }: { navigation: any }) {
   return (
@@ -250,6 +254,8 @@ export function FigmaInbox({ navigation }: any) {
   const [status, setStatus] = useState("ALL");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+  const [senderKey, setSenderKey] = useState("");
+  const senderReady = Boolean(senderKey && senderKey !== "unassigned");
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(query.trim());
@@ -258,10 +264,12 @@ export function FigmaInbox({ navigation }: any) {
     return () => clearTimeout(timer);
   }, [query]);
   const resource = useResource<Paginated<Conversation>>(
-    allowed
+    allowed && senderReady
       ? `/conversations?page=${page}&limit=30&search=${encodeURIComponent(search)}${status === "ALL" ? "" : `&status=${status}`}`
       : null,
     15000,
+    senderKey,
+    senderReady ? senderKey : undefined,
   );
   return (
     <View style={l.page}>
@@ -283,6 +291,7 @@ export function FigmaInbox({ navigation }: any) {
               <Button
                 title="New chat"
                 secondary
+                disabled={!senderReady}
                 onPress={() => setCreating(true)}
               />
             )}
@@ -292,6 +301,19 @@ export function FigmaInbox({ navigation }: any) {
           <AccessNotice />
         ) : (
           <>
+            <MemberNumberSelector
+              onChanged={(id) => {
+                setSenderKey(id ?? "unassigned");
+                setPage(1);
+                setCreating(false);
+              }}
+            />
+            {senderKey === "unassigned" && (
+              <Text style={l.muted}>
+                No WhatsApp number is assigned. Ask your workspace administrator
+                to assign a connected number.
+              </Text>
+            )}
             <SearchBox value={query} onChangeText={setQuery} />
             <ScrollView
               horizontal
@@ -338,12 +360,13 @@ export function FigmaInbox({ navigation }: any) {
         )}
       </ScrollView>
       <Modal
-        visible={creating}
+        visible={creating && senderReady}
         animationType="slide"
         onRequestClose={() => setCreating(false)}
       >
-        {creating && (
+        {creating && senderReady && (
           <NewConversation
+            phoneNumberId={senderKey}
             onClose={() => setCreating(false)}
             onCreated={(id) => {
               setCreating(false);
@@ -356,9 +379,11 @@ export function FigmaInbox({ navigation }: any) {
   );
 }
 function NewConversation({
+  phoneNumberId,
   onClose,
   onCreated,
 }: {
+  phoneNumberId: string;
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
@@ -368,15 +393,23 @@ function NewConversation({
   const lock = useRef(false);
   const contacts = useResource<Paginated<Contact>>(
     `/contacts?page=${page}&limit=20&search=${encodeURIComponent(search)}`,
+    0,
+    phoneNumberId,
+    phoneNumberId,
   );
   const create = async (contact: Contact) => {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     try {
-      const result = await api.post<Conversation>("/conversations", {
-        channelType: "WHATSAPP",
-        contactId: contact.id,
+      const result = await api.request<Conversation>("/conversations", {
+        method: "POST",
+        headers: { "x-whatsapp-phone-number-id": phoneNumberId },
+        data: {
+          channelType: "WHATSAPP",
+          contactId: contact.id,
+          whatsappPhoneNumberId: phoneNumberId,
+        },
       });
       onCreated(result.id);
     } catch (error) {
@@ -388,14 +421,14 @@ function NewConversation({
   };
   return (
     <SafeAreaView style={l.page}>
+      <View style={[l.between, { paddingHorizontal: 20, paddingVertical: 12 }]}>
+        <Text style={l.title}>New conversation</Text>
+        <Button title="Close" secondary onPress={onClose} disabled={busy} />
+      </View>
       <ScrollView
         contentContainerStyle={l.content}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={l.between}>
-          <Text style={l.title}>New conversation</Text>
-          <Button title="Close" secondary onPress={onClose} disabled={busy} />
-        </View>
         <SearchBox
           value={search}
           onChangeText={(value) => {
@@ -437,6 +470,7 @@ export function FigmaConversation({ navigation, route }: any) {
   const id: string = route.params.id;
   const user = useAppStore((s) => s.user);
   const allowed = canAccessTab(user, "Inbox");
+  const accountKey = `${user?.organizationId}:${user?.id}`;
   const resource = useResource<Conversation>(
     allowed ? `/conversations/${encodeURIComponent(id)}` : null,
     8000,
@@ -452,6 +486,7 @@ export function FigmaConversation({ navigation, route }: any) {
   const [olderPage, setOlderPage] = useState(1);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const scroll = useRef<ScrollView>(null);
   const scrollToBottom = useRef(true);
@@ -499,18 +534,81 @@ export function FigmaConversation({ navigation, route }: any) {
     setReplyingTo(null);
     setReactionTarget(null);
     setEmojiOpen(false);
-  }, [id]);
-  const messages = mergeMessages(older, conversation?.messages || []);
+    setTemplatesOpen(false);
+    setOptionsOpen(false);
+    setTemplateBusy(false);
+  }, [id, accountKey]);
+  useEffect(() => {
+    if (!conversation && !resource.loading && (resource.error || !allowed)) {
+      setText("");
+      setOlder([]);
+      setAttachment(null);
+      setReplyingTo(null);
+      setReactionTarget(null);
+      setTemplatesOpen(false);
+    }
+  }, [conversation, resource.loading, resource.error, allowed]);
+  const messages = conversation
+    ? mergeMessages(older, conversation.messages || [])
+    : [];
   const timeline = messageTimeline(messages);
   const optedOut =
     conversation?.channelType === "WHATSAPP" &&
     conversation.contact?.whatsappConsentStatus === "OPTED_OUT";
   const writable =
+    Boolean(conversation) &&
+    (note || hasReplyWindow(conversation)) &&
     (!optedOut || note) &&
     canMutate(
       user,
       note ? "conversations.internal_note" : "conversations.send",
     );
+  const aiAllowed =
+    Boolean(conversation) && allowed && can(user, "ai_assist.use");
+  const aiContext = JSON.stringify([
+    accountKey,
+    id,
+    conversation?.whatsappPhoneNumberId,
+    messages[messages.length - 1]?.id,
+    messages.length,
+    note,
+    busy,
+    writable,
+    aiAllowed,
+    templatesOpen,
+    templateBusy,
+    optionsOpen,
+  ]);
+  const currentAiContext = useRef(aiContext);
+  currentAiContext.current = aiContext;
+  const currentText = useRef(text);
+  currentText.current = text;
+  const useAiDraft = (draft: string) => {
+    const apply = () => {
+      if (
+        currentAiContext.current !== aiContext ||
+        currentText.current !== text
+      ) {
+        setFailure(
+          "Your message or conversation changed. Review the suggestion again before replacing it.",
+        );
+        return;
+      }
+      if (!writable || note || !aiAllowed) return;
+      setText(draft);
+      selection.current = { start: draft.length, end: draft.length };
+    };
+    if (text.trim())
+      Alert.alert(
+        "Replace your current message?",
+        "Your typed message will be replaced by the reviewed AI draft. Nothing will be sent.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Replace message", onPress: apply },
+        ],
+      );
+    else apply();
+  };
   const loadOlder = async () => {
     if (loadingOlder) return;
     setLoadingOlder(true);
@@ -623,7 +721,13 @@ export function FigmaConversation({ navigation, route }: any) {
     }
   };
   const send = async () => {
-    if (lock.current || !writable || (!text.trim() && !attachment)) return;
+    if (
+      lock.current ||
+      !writable ||
+      (!note && !hasReplyWindow(conversation)) ||
+      (!text.trim() && !attachment)
+    )
+      return;
     lock.current = true;
     setBusy(true);
     setFailure(null);
@@ -847,6 +951,23 @@ export function FigmaConversation({ navigation, route }: any) {
       <SafeAreaView edges={["bottom"]} style={{ backgroundColor: ui.white }}>
         <View style={{ padding: 12, gap: 10 }}>
           <ReadOnlyNotice />
+          <MobileAiAssistance
+            conversationId={id}
+            phoneNumberId={conversation?.whatsappPhoneNumberId ?? undefined}
+            contextKey={aiContext}
+            allowed={aiAllowed}
+            canSuggest={writable && !note && !busy}
+            hasDraft={Boolean(text.trim())}
+            onUse={useAiDraft}
+          />
+          {conversation?.channelType === "WHATSAPP" &&
+            !note &&
+            !hasReplyWindow(conversation) && (
+              <Text style={l.muted}>
+                The 24-hour reply window is closed. Use an approved WhatsApp
+                template. Internal notes remain available.
+              </Text>
+            )}
           {optedOut && !note && (
             <Text style={l.error}>
               This contact has opted out of WhatsApp messages. Internal notes
@@ -1016,14 +1137,21 @@ export function FigmaConversation({ navigation, route }: any) {
         }}
       />
       <Modal
-        visible={templatesOpen}
+        visible={templatesOpen && Boolean(conversation)}
         animationType="slide"
-        onRequestClose={() => setTemplatesOpen(false)}
+        onRequestClose={() => {
+          if (!templateBusy) setTemplatesOpen(false);
+        }}
       >
-        {templatesOpen && (
+        {templatesOpen && conversation && (
           <TemplatePicker
+            key={`${accountKey}:${id}:${conversation.whatsappPhoneNumberId}`}
             conversationId={id}
+            phoneNumberId={conversation.whatsappPhoneNumberId ?? undefined}
             onClose={() => setTemplatesOpen(false)}
+            onBusyChange={(value) => {
+              if (currentId.current === id) setTemplateBusy(value);
+            }}
             onSent={() => {
               setTemplatesOpen(false);
               targetPending.current = false;
@@ -1042,6 +1170,10 @@ export function FigmaConversation({ navigation, route }: any) {
         {optionsOpen && conversation && (
           <ConversationOptions
             conversation={conversation}
+            onOpenWorkspace={(path, title) => {
+              setOptionsOpen(false);
+              navigation.navigate("WorkspacePage", { path, title });
+            }}
             onClose={() => setOptionsOpen(false)}
             onUpdated={() => {
               setOptionsOpen(false);
@@ -1211,14 +1343,27 @@ function MessageBubble({
 }
 function TemplatePicker({
   conversationId,
+  phoneNumberId,
   onClose,
   onSent,
+  onBusyChange,
 }: {
   conversationId: string;
+  phoneNumberId?: string;
   onClose: () => void;
   onSent: () => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
-  const resource = useResource<Template[]>("/whatsapp-templates");
+  const user = useAppStore((s) => s.user);
+  const permitted =
+    canMutate(user, "conversations.send") &&
+    can(user, "whatsapp_templates.read");
+  const resource = useResource<Template[]>(
+    permitted ? "/whatsapp-templates" : null,
+    0,
+    conversationId,
+    phoneNumberId,
+  );
   const [selected, setSelected] = useState<Template | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -1229,16 +1374,33 @@ function TemplatePicker({
     ...new Set([...body.matchAll(/\{\{(\d+)\}\}/g)].map((match) => match[1])),
   ].sort((a, b) => Number(a) - Number(b));
   const send = async () => {
-    if (!selected || lock.current) return;
+    if (
+      !selected ||
+      !permitted ||
+      lock.current ||
+      parameters.some((key) => !values[key]?.trim()) ||
+      !resource.data?.some(
+        (template) =>
+          template.id === selected.id && template.status === "ACTIVE",
+      )
+    )
+      return;
     lock.current = true;
     setBusy(true);
+    onBusyChange(true);
     setFailure(null);
     try {
-      await api.post(
+      await api.request(
         `/whatsapp-templates/${encodeURIComponent(selected.id)}/send`,
         {
-          conversationId,
-          parameters: parameters.map((key) => values[key]?.trim() || ""),
+          method: "POST",
+          ...(phoneNumberId
+            ? { headers: { "x-whatsapp-phone-number-id": phoneNumberId } }
+            : {}),
+          data: {
+            conversationId,
+            parameters: parameters.map((key) => values[key]?.trim() || ""),
+          },
         },
       );
       onSent();
@@ -1247,18 +1409,19 @@ function TemplatePicker({
     } finally {
       lock.current = false;
       setBusy(false);
+      onBusyChange(false);
     }
   };
   return (
     <SafeAreaView style={l.page}>
+      <View style={[l.between, { paddingHorizontal: 20, paddingVertical: 12 }]}>
+        <Text style={l.title}>Approved templates</Text>
+        <Button title="Close" secondary disabled={busy} onPress={onClose} />
+      </View>
       <ScrollView
         contentContainerStyle={l.content}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={l.between}>
-          <Text style={l.title}>Approved templates</Text>
-          <Button title="Close" secondary disabled={busy} onPress={onClose} />
-        </View>
         <Text style={l.body}>
           Use an approved template to start or reopen a WhatsApp conversation.
         </Text>
@@ -1305,7 +1468,14 @@ function TemplatePicker({
         <Button
           title={busy ? "Sending…" : "Send template"}
           disabled={
-            !selected || busy || parameters.some((key) => !values[key]?.trim())
+            !permitted ||
+            !selected ||
+            busy ||
+            !resource.data?.some(
+              (template) =>
+                template.id === selected.id && template.status === "ACTIVE",
+            ) ||
+            parameters.some((key) => !values[key]?.trim())
           }
           onPress={send}
         />
@@ -1315,10 +1485,12 @@ function TemplatePicker({
 }
 function ConversationOptions({
   conversation,
+  onOpenWorkspace,
   onClose,
   onUpdated,
 }: {
   conversation: Conversation;
+  onOpenWorkspace: (path: string, title: string) => void;
   onClose: () => void;
   onUpdated: () => void;
 }) {
@@ -1344,11 +1516,11 @@ function ConversationOptions({
   };
   return (
     <SafeAreaView style={l.page}>
+      <View style={[l.between, { paddingHorizontal: 20, paddingVertical: 12 }]}>
+        <Text style={l.title}>Conversation</Text>
+        <Button title="Close" secondary onPress={onClose} disabled={busy} />
+      </View>
       <ScrollView contentContainerStyle={l.content}>
-        <View style={l.between}>
-          <Text style={l.title}>Conversation</Text>
-          <Button title="Close" secondary onPress={onClose} disabled={busy} />
-        </View>
         <Text style={l.heading}>{contactName(conversation.contact)}</Text>
         <Text style={l.body}>
           {conversation.contact?.whatsappNumber || conversation.contact?.phone}
@@ -1357,6 +1529,42 @@ function ConversationOptions({
           Assigned to {conversation.assignedTo?.fullName || "nobody"}
         </Text>
         <Text style={l.body}>Priority: {humanize(conversation.priority)}</Text>
+        {conversation.channelType === "WHATSAPP" && (
+          <MobileCallOptions
+            conversationId={conversation.id}
+            phone={
+              conversation.contact?.whatsappNumber ||
+              conversation.contact?.phone ||
+              ""
+            }
+            phoneNumberId={conversation.whatsappPhoneNumberId || undefined}
+            onStarted={onClose}
+          />
+        )}
+        <Button
+          title="Open full inbox tools"
+          secondary
+          disabled={busy}
+          onPress={() =>
+            onOpenWorkspace(
+              `/app/inbox?conversation=${encodeURIComponent(conversation.id)}`,
+              "Inbox tools",
+            )
+          }
+        />
+        {conversation.contact?.id && can(user, "contacts.read") && (
+          <Button
+            title="Contact details"
+            secondary
+            disabled={busy}
+            onPress={() =>
+              onOpenWorkspace(
+                `/app/contacts/${encodeURIComponent(conversation.contact!.id)}`,
+                "Contact details",
+              )
+            }
+          />
+        )}
         {canMutate(user, "conversations.status.update") && (
           <>
             <Text style={l.heading}>Status</Text>

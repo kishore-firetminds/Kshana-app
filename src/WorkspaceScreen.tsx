@@ -37,6 +37,10 @@ import { KeyboardFrame } from "./KeyboardLayout";
 import { workspaceViewportScript } from "./api/workspaceViewport";
 import { useAppStore } from "./store";
 import { canAccessWorkspacePath } from "./access";
+import {
+  isWorkspaceCallingUrl,
+  workspaceCallingScript,
+} from "./api/workspaceCalling";
 
 export function WorkspacePage({ route }: any) {
   const user = useAppStore((state) => state.user);
@@ -83,6 +87,7 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
   const target = useMemo(() => workspaceUrl(SITE_URL, path), [path]);
   const source = useMemo(() => ({ uri: target }), [target]);
   const origin = new URL(SITE_URL).origin;
+  const openCallHistory = () => navigation.navigate("App", { screen: "Calls" });
   const retry = () => {
     setReady(false);
     setError("");
@@ -220,6 +225,8 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             injectedJavaScriptBeforeContentLoaded={
               workspaceViewportScript(origin) +
               "\n" +
+              workspaceCallingScript(origin) +
+              "\n" +
               mobilePurchaseGuardScript(origin) +
               "\n" +
               workspaceScript(origin) +
@@ -228,6 +235,8 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             }
             injectedJavaScript={
               workspaceViewportScript(origin) +
+              "\n" +
+              workspaceCallingScript(origin) +
               "\n" +
               mobilePurchaseGuardScript(origin) +
               "\n" +
@@ -241,6 +250,10 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
                 // Android supplies the sender origin here, without its path.
                 if (url.origin !== origin) return;
                 const message = JSON.parse(event.nativeEvent.data);
+                if (message.type === "kshana-mobile-call-history") {
+                  openCallHistory();
+                  return;
+                }
                 if (
                   message.type === "kshana-workspace-state" &&
                   typeof message.ready === "boolean"
@@ -256,6 +269,10 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             originWhitelist={["https://*"]}
             mixedContentMode="never"
             onShouldStartLoadWithRequest={(request) => {
+              if (isWorkspaceCallingUrl(request.url, origin)) {
+                openCallHistory();
+                return false;
+              }
               if (isMobilePurchaseUrl(request.url, origin)) return false;
               try {
                 const url = new URL(request.url);
@@ -300,6 +317,10 @@ function WorkspaceContent({ path, title }: { path: string; title: string }) {
             onRenderProcessGone={retry}
             onContentProcessDidTerminate={retry}
             onOpenWindow={(event) => {
+              if (isWorkspaceCallingUrl(event.nativeEvent.targetUrl, origin)) {
+                openCallHistory();
+                return;
+              }
               if (isMobilePurchaseUrl(event.nativeEvent.targetUrl, origin))
                 return;
               try {

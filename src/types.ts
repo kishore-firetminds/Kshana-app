@@ -57,6 +57,11 @@ export type TabParamList = {
 };
 export type DrawerParamList = {
   Main: undefined;
+  Calls: undefined;
+  AiAgents: undefined;
+  Segments: undefined;
+  Attributes: undefined;
+  CommercialInvoices: undefined;
   Contacts: undefined;
   Leads: undefined;
   Companies: undefined;

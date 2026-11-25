@@ -67,6 +67,7 @@ export type Message = {
 };
 export type Conversation = {
   id: string;
+  whatsappPhoneNumberId?: string | null;
   channelType: string;
   status: string;
   priority?: string | null;

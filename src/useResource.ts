@@ -3,16 +3,28 @@ import axios from "axios";
 import { AppState } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "./api";
-import { errorMessage } from "./api/client";
+import { ApiError, errorMessage } from "./api/client";
+import { useAppStore } from "./store";
 
 /** Fetch on focus/foreground, cancel on blur, and never overwrite a newer query. */
-export function useResource<T>(path: string | null, pollMs = 0) {
+export function useResource<T>(
+  path: string | null,
+  pollMs = 0,
+  scopeKey = "",
+  phoneNumberId?: string,
+) {
+  const account = useAppStore((state) =>
+    state.user ? `${state.user.organizationId}:${state.user.id}` : "",
+  );
+  const key = path
+    ? JSON.stringify([path, scopeKey, phoneNumberId, account])
+    : null;
   const [state, setState] = useState<{
     path: string | null;
     data: T | null;
     loading: boolean;
     error: string | null;
-  }>({ path, data: null, loading: Boolean(path), error: null });
+  }>({ path: key, data: null, loading: Boolean(path), error: null });
   const active = useRef(false);
   const sequence = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -25,15 +37,20 @@ export function useResource<T>(path: string | null, pollMs = 0) {
     controller.current = abort;
     inFlight.current = true;
     setState((previous) => ({
-      path,
-      data: previous.path === path ? previous.data : null,
+      path: key,
+      data: previous.path === key ? previous.data : null,
       loading: true,
       error: null,
     }));
     try {
-      const data = await api.request<T>(path, { signal: abort.signal });
+      const data = await api.request<T>(path, {
+        signal: abort.signal,
+        ...(phoneNumberId
+          ? { headers: { "x-whatsapp-phone-number-id": phoneNumberId } }
+          : {}),
+      });
       if (active.current && request === sequence.current)
-        setState({ path, data, loading: false, error: null });
+        setState({ path: key, data, loading: false, error: null });
     } catch (error) {
       if (
         !abort.signal.aborted &&
@@ -42,18 +59,23 @@ export function useResource<T>(path: string | null, pollMs = 0) {
       )
         setState((previous) => ({
           ...previous,
-          path,
-          data:
-            axios.isAxiosError(error) && error.response?.status === 403
-              ? null
-              : previous.data,
+          path: key,
+          data: [401, 403, 404].includes(
+            axios.isAxiosError(error)
+              ? (error.response?.status ?? 0)
+              : error instanceof ApiError
+                ? error.status
+                : 0,
+          )
+            ? null
+            : previous.data,
           loading: false,
           error: errorMessage(error),
         }));
     } finally {
       if (request === sequence.current) inFlight.current = false;
     }
-  }, [path]);
+  }, [path, key, phoneNumberId]);
   useFocusEffect(
     useCallback(() => {
       active.current = true;
@@ -79,7 +101,7 @@ export function useResource<T>(path: string | null, pollMs = 0) {
     }, [refresh, pollMs]),
   );
   const current =
-    state.path === path
+    state.path === key
       ? state
       : { data: null, loading: Boolean(path), error: null };
   return { ...current, refresh };

@@ -15,6 +15,7 @@
       "autoIncrement": true,
       "environment": "production",
       "env": {
+        "EXPO_PUBLIC_NATIVE_CALLING_ENABLED": "false",
         "EXPO_PUBLIC_SITE_URL": "https://kshanaapi.com",
         "EXPO_PUBLIC_API_URL": "https://kshanaapi.com/api/backend"
       },
